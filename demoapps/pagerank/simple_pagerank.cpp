@@ -182,17 +182,19 @@ int main(int argc, char** argv) {
   layout = (struct Mem_layout *)mem;
   std::cout<< "magic: " << layout->magic <<std::endl;
   // Build the graph ----------------------------------------------------------
-  graph_type graph(dc, clopts);
+  graphlab::BI_Alloctor<graph_type> graph_alloctor;
+  graph_type *graph_mem, *graph;
+  graph_mem = graph_alloctor.allocate(1);
+  graph = new (graph_mem) graph_type(dc, clopts);
   dc.cout() << "Loading graph in format: "<< format << std::endl;
-  graph.load_format(graph_dir, format);
+  graph->load_format(graph_dir, format);
   // must call finalize before querying the graph
-  graph.finalize();
-  dc.cout() << "#vertices: " << graph.num_vertices()
-            << " #edges:" << graph.num_edges() << std::endl;
+  graph->finalize();
+  dc.cout() << "#vertices: " << graph->num_vertices()
+            << " #edges:" << graph->num_edges() << std::endl;
 
   // Initialize the vertex data
-  graph.transform_vertices(init_vertex);
-
+  graph->transform_vertices(init_vertex);
   if (!id_node) {
 	  clwb_range(mem, TEST_FILE_SIZE);
 	  sleep(10);
@@ -203,7 +205,7 @@ int main(int argc, char** argv) {
   }
   std::cout << "++++++++++++  init done ++++++++++++++" << std::endl;
   // Running The Engine -------------------------------------------------------
-  graphlab::omni_engine<pagerank> engine(dc, graph, exec_type, clopts);
+  graphlab::omni_engine<pagerank> engine(dc, *graph, exec_type, clopts);
   engine.signal_all();
   engine.start();
   const float runtime = engine.elapsed_seconds();
@@ -212,7 +214,7 @@ int main(int argc, char** argv) {
 
   // Save the final graph -----------------------------------------------------
   if (saveprefix != "") {
-    graph.save(saveprefix, pagerank_writer(),
+    graph->save(saveprefix, pagerank_writer(),
                false,    // do not gzip
                true,     // save vertices
                false);   // do not save edges
