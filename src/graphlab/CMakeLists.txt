@@ -14,6 +14,7 @@ subdirs(
   serialization
   logger
   ui
+  bi
 #  jni
   )
 

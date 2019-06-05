@@ -513,6 +513,7 @@ macro(requires_core_deps NAME)
     target_link_libraries(${NAME} tcmalloc)
     add_dependencies(${NAME} libtcmalloc)
   endif()
+  target_link_libraries(${NAME} bi mem rpc util ck)
 endmacro(requires_core_deps)
 
 
@@ -589,10 +590,10 @@ set(CMAKE_CXX_FLAGS_DEBUG
   CACHE STRING "compiler options" FORCE)
 
 set(CMAKE_C_FLAGS_RELEASE
-  "-O3 -Wno-attributes -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O3 -Wno-attributes -fpermissive -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 set(CMAKE_CXX_FLAGS_RELEASE
-  "-O3 ${WNO_LOCAL_TYPEDEFS} -Wno-attributes -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+  "-O3 ${WNO_LOCAL_TYPEDEFS} -Wno-attributes -fpermissive -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 
 set(CMAKE_REQUIRED_FLAGS ${CMAKE_CXX_FLAGS_RELEASE})
