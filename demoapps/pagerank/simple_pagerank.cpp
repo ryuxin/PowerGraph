@@ -27,10 +27,16 @@
 #include <graphlab.hpp>
 // #include <graphlab/macros_def.hpp>
 
+#define TEST_FILE_NAME "/lfs/cache_test"
+#define TEST_FILE_SIZE (5*1024*1024*1024UL)
+#define TEST_FILE_ADDR ((void *)0x7ff968000000)
+
 // Global random reset probability
 float RESET_PROB = 0.15;
 
 float TOLERANCE = 1.0E-2;
+
+static int num_node, num_core, id_node = 0;
 
 // The vertex data is just the pagerank value (a float)
 typedef float vertex_data_type;
@@ -143,6 +149,10 @@ int main(int argc, char** argv) {
   clopts.attach_option("saveprefix", saveprefix,
                        "If set, will save the resultant pagerank to a "
                        "sequence of files with prefix saveprefix");
+  clopts.attach_option("nnode", num_node,
+                       "number of partitions.");
+  clopts.attach_option("ncore", num_core,
+                       "number of cores in each partition.");
 
   if(!clopts.parse(argc, argv)) {
     dc.cout() << "Error in parsing command line arguments." << std::endl;
@@ -154,6 +164,23 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  // BI init ------------------------------------------------------
+  void *mem;
+  struct Mem_layout *layout;
+  std::cout << "proc id " << dc.procid() << std::endl;
+  id_node = dc.procid();
+  thd_set_affinity(pthread_self(), id_node, 1);
+  if (!id_node) {
+	mem = bi_global_init_master(id_node, num_node, num_core,
+				    TEST_FILE_NAME, TEST_FILE_SIZE, TEST_FILE_ADDR, 
+				    "graph page rank benchmark");
+  } else {
+	mem = bi_global_init_slave(id_node, num_node, num_core,
+				   TEST_FILE_NAME, TEST_FILE_SIZE, TEST_FILE_ADDR);
+	mem_mgr_init();
+  }
+  layout = (struct Mem_layout *)mem;
+  std::cout<< "magic: " << layout->magic <<std::endl;
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
   dc.cout() << "Loading graph in format: "<< format << std::endl;
@@ -166,6 +193,15 @@ int main(int argc, char** argv) {
   // Initialize the vertex data
   graph.transform_vertices(init_vertex);
 
+  if (!id_node) {
+	  clwb_range(mem, TEST_FILE_SIZE);
+	  sleep(10);
+	  bi_set_barrier(2);
+  } else {
+	  bi_wait_barrier(2);
+	  clflush_range(mem, TEST_FILE_SIZE);
+  }
+  std::cout << "++++++++++++  init done ++++++++++++++" << std::endl;
   // Running The Engine -------------------------------------------------------
   graphlab::omni_engine<pagerank> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
