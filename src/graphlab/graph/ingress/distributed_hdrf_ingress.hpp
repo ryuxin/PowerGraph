@@ -34,14 +34,14 @@
 #include <graphlab/util/cuckoo_map_pow2.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor>
     class distributed_graph;
 
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor = std::allocator>
   class distributed_hdrf_ingress: 
-    public distributed_ingress_base<VertexData, EdgeData> {
+    public distributed_ingress_base<VertexData, EdgeData, Graph_alloctor> {
   public:
-    typedef distributed_graph<VertexData, EdgeData> graph_type;
+    typedef distributed_graph<VertexData, EdgeData, Graph_alloctor> graph_type;
     /// The type of the vertex data stored in the graph 
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
@@ -50,7 +50,7 @@ namespace graphlab {
     typedef typename graph_type::vertex_record vertex_record;
     typedef typename graph_type::mirror_type mirror_type;
 
-    typedef distributed_ingress_base<VertexData, EdgeData> base_type;
+    typedef distributed_ingress_base<VertexData, EdgeData, Graph_alloctor> base_type;
     typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
 
     /** Type of the replica degree hash table: 
@@ -99,7 +99,7 @@ namespace graphlab {
     virtual void finalize() {
      dht.clear();
      degree_dht.clear();
-     distributed_ingress_base<VertexData, EdgeData>::finalize();
+     distributed_ingress_base<VertexData, EdgeData, Graph_alloctor>::finalize();
         
         size_t count = 0;
         for(std::vector<size_t>::iterator it = proc_num_edges.begin(); it != proc_num_edges.end(); ++it) {

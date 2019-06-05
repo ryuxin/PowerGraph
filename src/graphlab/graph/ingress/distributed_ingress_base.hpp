@@ -36,13 +36,13 @@ namespace graphlab {
   /**
    * \brief Implementation of the basic ingress functionality.
    */
-  template <typename VertexType, typename EdgeType> 
+  template <typename VertexType, typename EdgeType, template<typename> typename Graph_alloctor>
   class distributed_graph;
 
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor = std::allocator>
   class distributed_ingress_base {
   public:
-    typedef distributed_graph<VertexData, EdgeData> graph_type;
+    typedef distributed_graph<VertexData, EdgeData, Graph_alloctor> graph_type;
     /// The type of the vertex data stored in the graph 
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 

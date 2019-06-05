@@ -308,7 +308,7 @@ namespace graphlab {
    *                  Copyable, Default Constructable, Copy
    *                  Constructable and \ref sec_serializable.
    */
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor = std::allocator>
   class distributed_graph {
   public:
 
@@ -392,11 +392,11 @@ namespace graphlab {
 #else 
     typedef graphlab::local_graph<VertexData, EdgeData> local_graph_type;
 #endif
-    typedef graphlab::distributed_graph<VertexData, EdgeData> graph_type;
+    typedef graphlab::distributed_graph<VertexData, EdgeData, Graph_alloctor> graph_type;
 
     typedef std::vector<simple_spinlock> lock_manager_type;
 
-    friend class distributed_ingress_base<VertexData, EdgeData>;
+    friend class distributed_ingress_base<VertexData, EdgeData, Graph_alloctor>;
 
 
     // Make friends with graph operation classes 
@@ -1876,7 +1876,7 @@ namespace graphlab {
         outstreams.push_back(out_file);
         booststreams.push_back(fout);
         // construct the callback for the parallel for
-        typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
+        typedef distributed_graph<vertex_data_type, edge_data_type, Graph_alloctor> graph_type;
         vertex_callbacks[i] =
           boost::bind(&graph_type::template save_vertex_to_stream<boost_fstream_type, Writer>,
                       this, _1, boost::ref(*fout), boost::ref(writer));
@@ -1961,7 +1961,7 @@ namespace graphlab {
         outstreams.push_back(out_file);
         booststreams.push_back(fout);
         // construct the callback for the parallel for
-        typedef distributed_graph<vertex_data_type, edge_data_type> graph_type;
+        typedef distributed_graph<vertex_data_type, edge_data_type, Graph_alloctor> graph_type;
         vertex_callbacks[i] =
           boost::bind(&graph_type::template save_vertex_to_stream<boost_fstream_type, Writer>,
                       this, _1, boost::ref(*fout), writer);
@@ -3162,7 +3162,7 @@ namespace graphlab {
     size_t nreplicas;
 
     /** pointer to the distributed ingress object*/
-    distributed_ingress_base<VertexData, EdgeData>* ingress_ptr;
+    distributed_ingress_base<VertexData, EdgeData, Graph_alloctor>* ingress_ptr;
 
     /** Buffered Exchange used by synchronize() */
     buffered_exchange<std::pair<vertex_id_type, vertex_data_type> > vertex_exchange;
@@ -3182,20 +3182,20 @@ namespace graphlab {
       if (method == "oblivious") {
         if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use oblivious ingress, usehash: " << usehash
           << ", userecent: " << userecent << std::endl;
-        ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
+        ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData, Graph_alloctor>(rpc.dc(), *this, usehash, userecent);
       } else if (method == "hdrf") {
         if (rpc.procid() == 0) logstream(LOG_EMPH) << "Use hdrf oblivious ingress, usehash: " << usehash
           << ", userecent: " << userecent << std::endl;
-        ingress_ptr = new distributed_hdrf_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
+        ingress_ptr = new distributed_hdrf_ingress<VertexData, EdgeData, Graph_alloctor>(rpc.dc(), *this, usehash, userecent);
       } else if  (method == "random") {
         if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use random ingress" << std::endl;
-        ingress_ptr = new distributed_random_ingress<VertexData, EdgeData>(rpc.dc(), *this); 
+        ingress_ptr = new distributed_random_ingress<VertexData, EdgeData, Graph_alloctor>(rpc.dc(), *this);
       } else if (method == "grid") {
         if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use grid ingress" << std::endl;
-        ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "grid");
+        ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData, Graph_alloctor>(rpc.dc(), *this, "grid");
       } else if (method == "pds") {
         if (rpc.procid() == 0)logstream(LOG_EMPH) << "Use pds ingress" << std::endl;
-        ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "pds");
+        ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData, Graph_alloctor>(rpc.dc(), *this, "pds");
       } else {
         // use default ingress method if none is specified
         std::string ingress_auto="";
@@ -3203,13 +3203,13 @@ namespace graphlab {
         int nrow, ncol, p;
         if (sharding_constraint::is_pds_compatible(num_shards, p)) {
           ingress_auto="pds";
-          ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "pds");
+          ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData, Graph_alloctor>(rpc.dc(), *this, "pds");
         } else if (sharding_constraint::is_grid_compatible(num_shards, nrow, ncol)) {
           ingress_auto="grid";
-          ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData>(rpc.dc(), *this, "grid");
+          ingress_ptr = new distributed_constrained_random_ingress<VertexData, EdgeData, Graph_alloctor>(rpc.dc(), *this, "grid");
         } else {
           ingress_auto="oblivious";
-          ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData>(rpc.dc(), *this, usehash, userecent);
+          ingress_ptr = new distributed_oblivious_ingress<VertexData, EdgeData, Graph_alloctor>(rpc.dc(), *this, usehash, userecent);
         }
         if (rpc.procid() == 0)logstream(LOG_EMPH) << "Automatically determine ingress method: " << ingress_auto << std::endl;
       }

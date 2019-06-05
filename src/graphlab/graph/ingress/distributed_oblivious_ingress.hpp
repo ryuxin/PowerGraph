@@ -35,17 +35,17 @@
 #include <graphlab/parallel/pthread_tools.hpp>
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor>
     class distributed_graph;
 
   /**
    * \brief Ingress object assigning edges using randoming hash function.
    */
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor = std::allocator>
   class distributed_oblivious_ingress: 
-    public distributed_ingress_base<VertexData, EdgeData> {
+    public distributed_ingress_base<VertexData, EdgeData, Graph_alloctor> {
   public:
-    typedef distributed_graph<VertexData, EdgeData> graph_type;
+    typedef distributed_graph<VertexData, EdgeData, Graph_alloctor> graph_type;
     /// The type of the vertex data stored in the graph 
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
@@ -54,7 +54,7 @@ namespace graphlab {
     typedef typename graph_type::vertex_record vertex_record;
     typedef typename graph_type::mirror_type mirror_type;
 
-    typedef distributed_ingress_base<VertexData, EdgeData> base_type;
+    typedef distributed_ingress_base<VertexData, EdgeData, Graph_alloctor> base_type;
     // typedef typename boost::unordered_map<vertex_id_type, std::vector<size_t> > degree_hash_table_type;
     typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
 
@@ -101,7 +101,7 @@ namespace graphlab {
 
     virtual void finalize() {
      dht.clear();
-     distributed_ingress_base<VertexData, EdgeData>::finalize(); 
+     distributed_ingress_base<VertexData, EdgeData, Graph_alloctor>::finalize();
       
     }
 

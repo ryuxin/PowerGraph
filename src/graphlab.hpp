@@ -39,6 +39,7 @@
 #include <graphlab/util/util_includes.hpp>
 #include <graphlab/rpc/rpc_includes.hpp>
 #include <graphlab/ui/metrics_server.hpp>
+#include <graphlab/bi/bi_allocator.hpp>
 
 
 #endif

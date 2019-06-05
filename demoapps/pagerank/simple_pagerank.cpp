@@ -39,7 +39,7 @@ typedef float vertex_data_type;
 typedef graphlab::empty edge_data_type;
 
 // The graph type is determined by the vertex and edge data types
-typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
+typedef graphlab::distributed_graph<vertex_data_type, edge_data_type, graphlab::BI_Alloctor> graph_type;
 
 /*
  * A simple function used by graph.transform_vertices(init_vertex);

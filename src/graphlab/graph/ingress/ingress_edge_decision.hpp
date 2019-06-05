@@ -30,15 +30,15 @@
 #include <boost/random/uniform_int_distribution.hpp>
 
 namespace graphlab {
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor>
   class distributed_graph;
  
- template<typename VertexData, typename EdgeData>
+ template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor = std::allocator>
  class ingress_edge_decision {
 
     public:
       typedef graphlab::vertex_id_type vertex_id_type;
-      typedef distributed_graph<VertexData, EdgeData> graph_type;
+      typedef distributed_graph<VertexData, EdgeData, Graph_alloctor> graph_type;
       typedef fixed_dense_bitset<RPC_MAX_N_PROCS> bin_counts_type; 
 
     public:

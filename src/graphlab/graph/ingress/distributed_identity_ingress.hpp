@@ -33,23 +33,23 @@
 
 #include <graphlab/macros_def.hpp>
 namespace graphlab {
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor>
   class distributed_graph;
 
   /**
    * \brief Ingress object assigning edges to the loading machine itself.
    */
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor = std::allocator>
   class distributed_identity_ingress : 
-    public distributed_ingress_base<VertexData, EdgeData> {
+    public distributed_ingress_base<VertexData, EdgeData, Graph_alloctor> {
   public:
-    typedef distributed_graph<VertexData, EdgeData> graph_type;
+    typedef distributed_graph<VertexData, EdgeData, Graph_alloctor> graph_type;
     /// The type of the vertex data stored in the graph 
     typedef VertexData vertex_data_type;
     /// The type of the edge data stored in the graph 
     typedef EdgeData   edge_data_type;
 
-    typedef distributed_ingress_base<VertexData, EdgeData> base_type;
+    typedef distributed_ingress_base<VertexData, EdgeData, Graph_alloctor> base_type;
 
   public:
     distributed_identity_ingress(distributed_control& dc, graph_type& graph) :
