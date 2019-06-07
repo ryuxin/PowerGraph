@@ -799,10 +799,12 @@ namespace graphlab {
         INCREMENT_EVENT(EVENT_ACTIVE_CPUS, 1);
       }
       // launch the initialization threads
-      for(size_t i = 0; i < ncpus; ++i) {
+      size_t i, j;
+      for(j = 0; j < ncpus; ++j) {
+	i = (size_t)convert_to_core_id((int)rmi.procid(), (int)j);
         fiber_control::affinity_type affinity;
         affinity.clear(); affinity.set_bit(i);
-        boost::function<void(void)> invoke = boost::bind(member_fun, this, i);
+        boost::function<void(void)> invoke = boost::bind(member_fun, this, j);
         threads.launch(boost::bind(
               &synchronous_engine::thread_launch_wrapped_event_counter,
               this,

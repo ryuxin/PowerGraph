@@ -264,14 +264,14 @@ namespace graphlab {
       error = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
       ASSERT_TRUE(!error);
 
-#ifdef HAS_SET_AFFINITY
+//#ifdef HAS_SET_AFFINITY
       // Set Processor Affinity masks (linux only)
       cpu_set_t cpu_set;
       CPU_ZERO(&cpu_set);
       CPU_SET(cpu_id % CPU_SETSIZE, &cpu_set);
 
       pthread_attr_setaffinity_np(&attr, sizeof(cpu_set), &cpu_set);
-#endif
+//#endif
           
       // Launch the thread
       error = pthread_create(&m_p_thread, 
