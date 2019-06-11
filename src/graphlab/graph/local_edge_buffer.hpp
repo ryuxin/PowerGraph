@@ -29,11 +29,11 @@
 
 namespace graphlab {    
 
-    template<typename VertexData, typename EdgeData>
+    template<typename VertexData, typename EdgeData, template<typename> typename Graph_alloctor = std::allocator>
     // Edge class for temporary storage. Will be finalized into the CSR+CSC form.
     class local_edge_buffer {
     public:
-      std::vector<EdgeData> data;
+      std::vector<EdgeData, Graph_alloctor<EdgeData>> data;
       std::vector<lvid_type> source_arr;
       std::vector<lvid_type> target_arr;
     public:
@@ -59,7 +59,7 @@ namespace graphlab {
       }
       // \brief Remove all contents in the storage. 
       void clear() {
-        std::vector<EdgeData>().swap(data);
+        std::vector<EdgeData, Graph_alloctor<EdgeData>>().swap(data);
         std::vector<lvid_type>().swap(source_arr);
         std::vector<lvid_type>().swap(target_arr);
       }

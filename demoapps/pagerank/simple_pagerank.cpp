@@ -40,12 +40,17 @@ static int num_node, num_core, id_node = 0;
 
 // The vertex data is just the pagerank value (a float)
 typedef float vertex_data_type;
+typedef float gather_data_type;
 
 // There is no edge data in the pagerank application
 typedef graphlab::empty edge_data_type;
 
 // The graph type is determined by the vertex and edge data types
-typedef graphlab::distributed_graph<vertex_data_type, edge_data_type, graphlab::BI_Alloctor> graph_type;
+#ifdef ENABLE_BI_GRAPH 
+typedef graphlab::distributed_graph<vertex_data_type, edge_data_type, gather_data_type, graphlab::BI_Alloctor> graph_type;
+#else
+typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
+#endif
 
 /*
  * A simple function used by graph.transform_vertices(init_vertex);
@@ -76,7 +81,7 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  * graphlab::IS_POD_TYPE it must implement load and save functions.
  */
 class pagerank :
-  public graphlab::ivertex_program<graph_type, float>,
+  public graphlab::ivertex_program<graph_type, gather_data_type>,
   public graphlab::IS_POD_TYPE {
   float last_change;
 public:

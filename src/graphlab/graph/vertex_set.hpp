@@ -221,7 +221,7 @@ class vertex_set {
       exchange.barrier();
     }
 
-    template <typename VertexType, typename EdgeType, template<typename> typename Graph_alloctor>
+    template <typename VertexType, typename EdgeType, typename GatherData, template<typename> typename Graph_alloctor>
     friend class distributed_graph;
 
   public:

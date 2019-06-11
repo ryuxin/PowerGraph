@@ -65,7 +65,7 @@
 
 
 namespace graphlab {
-  template<typename VertexData, typename EdgeData>
+  template<typename VertexData, typename EdgeData, typename GatherData = VertexData, template<typename> typename Graph_alloctor = std::allocator>
   class dynamic_local_graph {
   public:
 
@@ -118,8 +118,8 @@ namespace graphlab {
       edges.clear();
       _csc_storage.clear();
       _csr_storage.clear();
-      std::vector<VertexData>().swap(vertices);
-      std::vector<EdgeData>().swap(edges);
+      std::vector<VertexData, Graph_alloctor<VertexData>>().swap(vertices);
+      std::vector<EdgeData, Graph_alloctor<EdgeData>>().swap(edges);
       edge_buffer.clear();
     }
 
@@ -306,7 +306,7 @@ namespace graphlab {
         // insert edge data
         edges.reserve(edges.size() + edge_buffer.size());
         edges.insert(edges.end(), edge_buffer.data.begin(), edge_buffer.data.end());
-        std::vector<EdgeData>().swap(edge_buffer.data);
+        std::vector<EdgeData, Graph_alloctor<EdgeData>>().swap(edge_buffer.data);
         edge_buffer.clear();
         size_t begin, end;
         for (size_t i = 0; i < src_counting_prefix_sum.size(); ++i) {
@@ -516,18 +516,18 @@ namespace graphlab {
     // PRIVATE DATA MEMBERS ===================================================>
     //
     /** The vertex data is simply a vector of vertex data */
-    std::vector<VertexData> vertices;
+    std::vector<VertexData, Graph_alloctor<VertexData>> vertices;
 
     /** Stores the edge data and edge relationships. */
     csr_type _csr_storage;
     csr_type _csc_storage;
-    std::vector<EdgeData> edges;
+    std::vector<EdgeData, Graph_alloctor<EdgeData>> edges;
 
     /** The edge data is a vector of edges where each edge stores its
         source, destination, and data. Used for temporary storage. The
         data is transferred into CSR+CSC representation in
         Finalize. This will be cleared after finalized.*/
-    local_edge_buffer<VertexData, EdgeData> edge_buffer;
+    local_edge_buffer<VertexData, EdgeData, Graph_alloctor> edge_buffer;
 
     /**************************************************************************/
     /*                                                                        */
@@ -553,8 +553,8 @@ namespace graphlab {
 /////////////////////// Implementation of Helper Class ////////////////////////////
 
 namespace graphlab {
-  template<typename VertexData, typename EdgeData>
-  class dynamic_local_graph<VertexData, EdgeData>::vertex_type {
+  template<typename VertexData, typename EdgeData, typename GatherData, template<typename> typename Graph_alloctor>
+  class dynamic_local_graph<VertexData, EdgeData, GatherData, Graph_alloctor>::vertex_type {
      public:
        vertex_type(dynamic_local_graph& lgraph_ref, lvid_type vid):lgraph_ref(lgraph_ref),vid(vid) { }
 
@@ -591,8 +591,8 @@ namespace graphlab {
        lvid_type vid;
     };
 
-    template<typename VertexData, typename EdgeData>
-    class dynamic_local_graph<VertexData, EdgeData>::edge_type {
+    template<typename VertexData, typename EdgeData, typename GatherData, template<typename> typename Graph_alloctor>
+    class dynamic_local_graph<VertexData, EdgeData, GatherData, Graph_alloctor>::edge_type {
      public:
       edge_type(dynamic_local_graph& lgraph_ref, lvid_type _source, lvid_type _target, edge_id_type _eid) :
         lgraph_ref(lgraph_ref), _source(_source), _target(_target), _eid(_eid) { }
@@ -623,8 +623,8 @@ namespace graphlab {
       edge_id_type _eid;
     };
 
-    template<typename VertexData, typename EdgeData>
-    class dynamic_local_graph<VertexData, EdgeData>::edge_iterator :
+    template<typename VertexData, typename EdgeData, typename GatherData, template<typename> typename Graph_alloctor>
+    class dynamic_local_graph<VertexData, EdgeData, GatherData, Graph_alloctor>::edge_iterator :
         public boost::iterator_facade < edge_iterator,
                                         edge_type,
                                         boost::random_access_traversal_tag,

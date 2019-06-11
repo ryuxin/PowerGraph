@@ -28,6 +28,8 @@
 #include <stdexcept>
 #include <graphlab/serialization/iarchive.hpp>
 #include <graphlab/serialization/oarchive.hpp>
+#include <graphlab/bi/bi_allocator.hpp>
+
 namespace graphlab {
 
 struct empty {
@@ -41,8 +43,8 @@ struct empty {
 
 namespace std {
 
-template <>
-class vector<graphlab::empty, allocator<graphlab::empty> > {
+template <template<typename> typename Graph_alloctor>
+class vector<graphlab::empty, Graph_alloctor<graphlab::empty> > {
  public:
   size_t len;
   graphlab::empty e;
@@ -134,7 +136,7 @@ class vector<graphlab::empty, allocator<graphlab::empty> > {
   typedef iterator const_reverse_iterator;
   typedef graphlab::empty& reference;
   typedef const graphlab::empty& const_reference;
-  typedef allocator<graphlab::empty> allocator_type;
+  typedef Graph_alloctor<graphlab::empty> allocator_type;
 
   // default constructor
   explicit vector(const allocator_type& a = allocator_type()):len(0) { }
@@ -269,11 +271,21 @@ class vector<graphlab::empty, allocator<graphlab::empty> > {
 // instead of the one built into vector<empty>. Using the out of place
 // save/load will fix this
 
+typedef std::vector<graphlab::empty, graphlab::BI_Alloctor<graphlab::empty>> vector_empty_bi_type;
+
 BEGIN_OUT_OF_PLACE_SAVE(arc, std::vector<graphlab::empty>, tval)
   arc<< tval.len;
 END_OUT_OF_PLACE_SAVE()
 
+BEGIN_OUT_OF_PLACE_SAVE(arc, vector_empty_bi_type, tval)
+  arc<< tval.len;
+END_OUT_OF_PLACE_SAVE()
+
 BEGIN_OUT_OF_PLACE_LOAD(arc, std::vector<graphlab::empty>, tval)
+  arc >> tval.len;
+END_OUT_OF_PLACE_LOAD()
+
+BEGIN_OUT_OF_PLACE_LOAD(arc, vector_empty_bi_type, tval)
   arc >> tval.len;
 END_OUT_OF_PLACE_LOAD()
 
