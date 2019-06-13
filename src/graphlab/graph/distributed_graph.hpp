@@ -458,6 +458,21 @@ namespace graphlab {
         return lvid == v.lvid;
       }
 
+#ifdef ENABLE_BI_GRAPH 
+      /// \brief Returns a constant reference to the data on the vertex
+      const vertex_data_type& data() const {
+	      void *addr;
+	      addr = graph_ref.l_get_vertex_record(lvid).owner_vertex_addr;
+	      return vertex_data_type(*(vertex_data_type *)addr);
+      }
+
+      /// \brief Returns a mutable reference to the data on the vertex
+      vertex_data_type& data() {
+	      void *addr;
+	      addr = graph_ref.l_get_vertex_record(lvid).owner_vertex_addr;
+	      return vertex_data_type(*(vertex_data_type *)addr);
+      }
+#else
       /// \brief Returns a constant reference to the data on the vertex
       const vertex_data_type& data() const {
         return graph_ref.get_local_graph().vertex_data(lvid);
@@ -467,6 +482,7 @@ namespace graphlab {
       vertex_data_type& data() {
         return graph_ref.get_local_graph().vertex_data(lvid);
       }
+#endif
 
       /// \brief Returns the number of in edges of the vertex
       size_t num_in_edges() const {
@@ -2619,6 +2635,8 @@ namespace graphlab {
     struct vertex_record {
       /// The official owning processor for this vertex
       procid_t owner;
+      /// The address of this vetex data in own proc
+      void *owner_vertex_addr;
       /// The local vid of this vertex on this proc
       vertex_id_type gvid;
       /// The number of in edges
@@ -2633,6 +2651,7 @@ namespace graphlab {
       vertex_record(const vertex_id_type& vid) :
         owner(-1), gvid(vid), num_in_edges(0), num_out_edges(0) { }
       procid_t get_owner () const { return owner; }
+      void *get_owner_addr () const { return owner_vertex_addr; }
       const mirror_type& mirrors() const { return _mirrors; }
       size_t num_mirrors() const { return _mirrors.popcount(); }
       const std::vector<void *>& gather_addrs() const { return _gather_addrs; }

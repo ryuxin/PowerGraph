@@ -461,12 +461,12 @@ namespace graphlab {
         }
       } // end of master handshake
 
+#ifdef ENABLE_BI_GRAPH 
       /**************************************************************************/
       /*                                                                        */
       /*                          Gather handshake                              */
       /*                                                                        */
       /**************************************************************************/
-#ifdef ENABLE_BI_GRAPH 
       {
     	buffered_exchange<gather_buffer_record> gather_exchange(rpc.dc());
 
@@ -508,7 +508,40 @@ namespace graphlab {
 		ASSERT_EQ(vrec._gather_addrs.size(), vrec.num_mirrors());
 	  }
 	}
-      } // end of gather handshake
+	rpc.barrier();
+
+
+      /**************************************************************************/
+      /*                                                                        */
+      /*                          Owner vertex address handshake                              */
+      /*                                                                        */
+      /**************************************************************************/
+	// send owned vertex address to their mirrors
+        for (lvid_type i = lvid_start; i < graph.lvid2record.size(); ++i) {
+          procid_t master = graph.lvid2record[i].owner;
+          if (master == rpc.procid()) {
+		vertex_id_type gvid =graph.lvid2record[i].gvid;
+		void *addr = graph.local_graph.vertex_addr(i);
+		const gather_buffer_record record(gvid, addr);
+		graph.lvid2record[i].owner_vertex_addr = addr;
+		foreach(const procid_t& mirror, graph.lvid2record[i].mirrors()) {
+			gather_exchange.send(mirror, record);
+		}
+	  }
+        }
+        gather_rexchange.flush();
+	rpc.barrier();
+
+	// receive all addrs of master vertex 
+        while(gather_exchange.recv(recvid, gather_buffer)) {
+            foreach(const gather_buffer_record& rec, gather_buffer) {
+                lvid_type lvid = graph.vid2lvid[rec.gvid];
+		graph.lvid2record[lvid]..owner_vertex_addr = rec.addr;
+            }
+        }
+
+        gather_exchange.clear();
+      }
 #endif      
 
       /**************************************************************************/

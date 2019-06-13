@@ -1731,11 +1731,16 @@ namespace graphlab {
 
     per_thread_compute_time[thread_id] += ti.current_time();
     vprog_exchange.partial_flush();
+#ifndef ENABLE_BI_GRAPH 
     vdata_exchange.partial_flush();
+#endif
       // Finish sending and receiving all changes due to apply operations
     thread_barrier.wait();
     if(thread_id == 0) { 
       vprog_exchange.flush(); vdata_exchange.flush(); 
+#ifndef ENABLE_BI_GRAPH 
+	    vdata_exchange.flush(); 
+#endif
     }
     thread_barrier.wait();
     recv_vertex_programs();
@@ -1835,6 +1840,20 @@ namespace graphlab {
   } // end of recv vertex programs
 
 
+#ifdef ENABLE_BI_GRAPH
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  sync_vertex_data(lvid_type lvid, const size_t thread_id) {
+	  return ;
+  } // end of sync_vertex_data
+
+
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  recv_vertex_data() {
+	  return ;
+  } // end of recv vertex data
+#else
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   sync_vertex_data(lvid_type lvid, const size_t thread_id) {
@@ -1865,6 +1884,7 @@ namespace graphlab {
       }
     }
   } // end of recv vertex data
+#endif
 
 #ifdef ENABLE_BI_GRAPH
   template<typename VertexProgram>

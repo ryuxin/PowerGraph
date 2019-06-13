@@ -255,6 +255,13 @@ namespace graphlab {
       return vertices[v];
     } // end of data(v)
     
+    /** \brief Returns the address of the data stored on the vertex v. */
+    void * vertex_addr(lvid_type v) {
+      ASSERT_LT(v, vertices.size());
+      VertexData *p = vertices.data();
+      return (void *)(p + v);
+    } // end of addr(v)
+    
     /** \brief Returns a reference to the gather data stored on the vertex v. */
     GatherData& gather_data(lvid_type v) {
       ASSERT_LT(v, vertices.size());
