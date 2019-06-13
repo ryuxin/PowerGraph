@@ -108,6 +108,17 @@ namespace graphlab {
       }
     };
 
+    /// Temporar buffers used to store edge data on ingress
+    struct gather_buffer_record {
+      vertex_id_type gvid;
+      void *addr ;
+      gather_buffer_record(const vertex_id_type& gvid = vertex_id_type(-1), 
+                         const void *addr = NULL) :
+        gvid(gvid), addr(addr) { }
+      void load(iarchive& arc) { arc >> gvid >> addr; }
+      void save(oarchive& arc) const { arc << gvid << addr; }
+    };
+
     /// Ingress decision object for computing the edge destination. 
     ingress_edge_decision<VertexData, EdgeData> edge_decision;
 
@@ -449,6 +460,56 @@ namespace graphlab {
           // std::cout << "proc " << rpc.procid() << " recevies flying vertex " << gvid << std::endl;
         }
       } // end of master handshake
+
+      /**************************************************************************/
+      /*                                                                        */
+      /*                          Gather handshake                              */
+      /*                                                                        */
+      /**************************************************************************/
+#ifdef ENABLE_BI_GRAPH 
+      {
+    	buffered_exchange<gather_buffer_record> gather_exchange(rpc.dc());
+
+	// send not owned gather and vids to their master
+        for (lvid_type i = lvid_start; i < graph.lvid2record.size(); ++i) {
+          procid_t master = graph.lvid2record[i].owner;
+          if (master != rpc.procid()) {
+		vertex_id_type gvid =graph.lvid2record[i].gvid;
+		void *addr = graph.local_graph.gather_addr(i);
+		const gather_buffer_record record(gvid, addr);
+        	gather_exchange.send(master, record);
+	  }
+        }
+        gather_exchange.flush();
+	rpc.barrier();
+
+	// receive all gather addrs of vids owned by me
+	typename buffered_exchange<gather_buffer_record>::buffer_type gather_buffer;
+        procid_t recvid;
+        while(gather_exchange.recv(recvid, gather_buffer)) {
+            foreach(const gather_buffer_record& rec, gather_buffer) {
+		ASSERT_NE(graph.vid2lvid.find(rec.gvid), graph.vid2lvid.end());
+                lvid_type lvid = graph.vid2lvid[rec.gvid];
+		ASSERT_EQ(rpc.procid(), graph.lvid2record[lvid].owner);
+		graph.lvid2record[lvid]._gather_addrs.push_back(rec.addr);
+            }
+        }
+
+        gather_exchange.clear();
+
+	// validate gather info
+        for (lvid_type i = lvid_start; i < graph.lvid2record.size(); ++i) {
+          procid_t master = graph.lvid2record[i].owner;
+	  vertex_record& vrec = graph.lvid2record[i];
+          if (master != rpc.procid()) {
+		ASSERT_EQ(0, vrec.num_mirrors());
+		ASSERT_EQ(0, vrec._gather_addrs.size());
+	  } else {
+		ASSERT_EQ(vrec._gather_addrs.size(), vrec.num_mirrors());
+	  }
+	}
+      } // end of gather handshake
+#endif      
 
       /**************************************************************************/
       /*                                                                        */

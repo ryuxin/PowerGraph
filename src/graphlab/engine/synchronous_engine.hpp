@@ -1643,23 +1643,31 @@ namespace graphlab {
             gather_cache[lvid] = accum; has_cache.set_bit(lvid);
           } // end of if caching enabled
         }
-        // If the accum contains a value for the local gather we put
+       	// If the accum contains a value for the local gather we put
         // that estimate in the gather exchange.
+#ifdef ENABLE_BI_GRAPH 
+       // if(accum_is_set) sync_gather(lvid, accum, thread_id);
+       sync_gather(lvid, accum, thread_id);
+#else
         if(accum_is_set) sync_gather(lvid, accum, thread_id);
+#endif
         if(!graph.l_is_master(lvid)) {
           // if this is not the master clear the vertex program
           vertex_programs[lvid] = vertex_program_type();
         }
-
+#ifndef ENABLE_BI_GRAPH 
         // try to recv gathers if there are any in the buffer
         if(++vcount % TRY_RECV_MOD == 0) recv_gathers();
+#endif	
       }
     } // end of loop over vertices to compute gather accumulators
     per_thread_compute_time[thread_id] += ti.current_time();
+#ifndef ENABLE_BI_GRAPH 
     gather_exchange.partial_flush();
       // Finish sending and receiving all gather operations
     thread_barrier.wait();
     if(thread_id == 0) gather_exchange.flush();
+#endif	
     thread_barrier.wait();
     recv_gathers();
   } // end of execute_gathers
@@ -1858,7 +1866,62 @@ namespace graphlab {
     }
   } // end of recv vertex data
 
+#ifdef ENABLE_BI_GRAPH
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  sync_gather(lvid_type lvid, const gather_type& accum, const size_t thread_id) {
+    vlocks[lvid].lock();
+    if(graph.l_is_master(lvid)) {
+      if(has_gather_accum.get(lvid)) {
+        gather_accum[lvid] += accum;
+      } else {
+        gather_accum[lvid] = accum;
+        has_gather_accum.set_bit(lvid);
+      }
+    } else {
+	 local_vertex_type vertex = graph.l_vertex(lvid);
+	 vertex.gather_data_set(accum);
+    }
+    vlocks[lvid].unlock();
+  } // end of sync_gather
 
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  recv_gathers() {
+	  fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;  // allocate a word size = 64bits
+	  while(1) {
+		// increment by a word at a time
+		lvid_type lvid_block_start = shared_lvid_counter.inc_ret_last(8 * sizeof(size_t));
+		if (lvid_block_start >= graph.num_local_vertices()) break;
+		// get the bit field from has_message
+		size_t lvid_bit_block = active_superstep.containing_word(lvid_block_start);
+		if (lvid_bit_block == 0) continue;
+		// initialize a word sized bitfield
+		local_bitset.clear();
+		local_bitset.initialize_from_mem(&lvid_bit_block, sizeof(size_t));
+		foreach(size_t lvid_block_offset, local_bitset) {
+			lvid_type lvid = lvid_block_start + lvid_block_offset;
+			if (lvid >= graph.num_local_vertices()) break;
+			local_vertex_type vertex = graph.l_vertex(lvid);
+			// Only master vertices can be active in a super-step
+			ASSERT_TRUE(graph.l_is_master(lvid));
+			gather_type accum = gather_type();
+			foreach(void *addr, vertex.gather_addrs()) {
+				gather_type at = gather_type(*((gather_type *)addr));
+				accum += at;
+			}
+			vlocks[lvid].lock();
+			if( has_gather_accum.get(lvid) ) {
+				gather_accum[lvid] += accum;
+			} else {
+				gather_accum[lvid] = accum;
+				has_gather_accum.set_bit(lvid);
+			}
+			vlocks[lvid].unlock();
+		}
+	  }
+  } // end of recv_gather
+#else
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   sync_gather(lvid_type lvid, const gather_type& accum, const size_t thread_id) {
@@ -1901,7 +1964,7 @@ namespace graphlab {
       }
     }
   } // end of recv_gather
-
+#endif
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::

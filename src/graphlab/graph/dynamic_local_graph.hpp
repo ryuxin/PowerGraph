@@ -146,15 +146,19 @@ namespace graphlab {
           const size_t new_size = std::max(2 * vertices.capacity(),
                                            size_t(vid));
           vertices.reserve(new_size);
+          gathers.reserve(new_size);
         }
         vertices.resize(vid+1);
+        gathers.resize(vid+1);
       }
       vertices[vid] = vdata;
+      gathers[vid] = GatherData();
     } // End of add vertex;
 
     void reserve(size_t num_vertices) {
       ASSERT_GE(num_vertices, vertices.size());
       vertices.reserve(num_vertices);
+      gathers.reserve(num_vertices);
     }
 
     /**
@@ -164,6 +168,7 @@ namespace graphlab {
     void resize(size_t num_vertices ) {
       ASSERT_GE(num_vertices, vertices.size());
       vertices.resize(num_vertices);
+      gathers.resize(num_vertices);
     } // End of resize
 
     void reserve_edge_space(size_t n) {
@@ -249,6 +254,26 @@ namespace graphlab {
       ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
+    
+    /** \brief Returns a reference to the gather data stored on the vertex v. */
+    GatherData& gather_data(lvid_type v) {
+      ASSERT_LT(v, vertices.size());
+      return gathers[v];
+    } // end of gather_data(v)
+
+    /** \brief Returns the address of the gather data of the vertex v. */
+    void * gather_addr(lvid_type v) {
+      ASSERT_LT(v, gathers.size());
+      GatherData *p = gathers.data();
+      return (void *)(p + v);
+    } // end of gather_addr(v)
+
+    /** \brief Set the gather data stored on the vertex v to a, and write back cache line. */
+    void gather_data_set(lvid_type v, const GatherData& a) {
+      ASSERT_LT(v, vertices.size());
+      gathers[v] = a;
+      clwb_range_opt(gather_addr(v), sizeof(GatherData));
+    } // end of gather_data_set(v)
 
     /**
      * \brief Finalize the local_graph data structure by
@@ -522,6 +547,8 @@ namespace graphlab {
     csr_type _csr_storage;
     csr_type _csc_storage;
     std::vector<EdgeData, Graph_alloctor<EdgeData>> edges;
+    
+    std::vector<GatherData, Graph_alloctor<GatherData>> gathers;
 
     /** The edge data is a vector of edges where each edge stores its
         source, destination, and data. Used for temporary storage. The

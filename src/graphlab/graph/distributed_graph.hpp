@@ -366,6 +366,9 @@ namespace graphlab {
     /// \endcond
 
 
+    /// The type of the edge data stored in the graph
+    typedef GatherData   gather_data_type;
+
     /**
        The line parse is any function (or functor) that has the form:
 
@@ -468,6 +471,16 @@ namespace graphlab {
       /// \brief Returns the number of in edges of the vertex
       size_t num_in_edges() const {
         return graph_ref.l_get_vertex_record(lvid).num_in_edges;
+      }
+
+      /// \brief Returns a mutable reference to the gather data on the vertex
+      gather_data_type& gatehr_data() {
+        return graph_ref.get_local_graph().gather_data(lvid);
+      }
+
+      /// \brief Set the gather data on the local vertex to a
+      void gather_data_set(const gather_data_type& a) {
+        return graph_ref.get_local_graph().gather_data_set(lvid, a);
       }
 
       /// \brief Returns the number of out edges of the vertex
@@ -2613,6 +2626,8 @@ namespace graphlab {
       /** The set of proc that mirror this vertex.  The owner should
           NOT be in this set.*/
       mirror_type _mirrors;
+      /// The set of gather data address in all mirror procs
+      std::vector<void *> _gather_addrs;
       vertex_record() :
         owner(-1), gvid(-1), num_in_edges(0), num_out_edges(0) { }
       vertex_record(const vertex_id_type& vid) :
@@ -2620,6 +2635,7 @@ namespace graphlab {
       procid_t get_owner () const { return owner; }
       const mirror_type& mirrors() const { return _mirrors; }
       size_t num_mirrors() const { return _mirrors.popcount(); }
+      const std::vector<void *>& gather_addrs() const { return _gather_addrs; }
 
       void clear() {
         _mirrors.clear();
@@ -2925,6 +2941,16 @@ namespace graphlab {
         return graph_ref.get_local_graph().vertex_data(lvid);
       }
 
+      /// \brief Returns a reference to the gather data on the local vertex
+      gather_data_type& gather_data() {
+        return graph_ref.get_local_graph().gather_data(lvid);
+      }
+ 
+      /// \brief Set the gather data on the local vertex to a
+      void gather_data_set(const gather_data_type& a) {
+        return graph_ref.get_local_graph().gather_data_set(lvid, a);
+      }
+
       /** \brief Returns the number of in edges on the
        *         local graph of this local vertex
        */
@@ -2995,6 +3021,11 @@ namespace graphlab {
        */
       const mirror_type& mirrors() const {
         return graph_ref.l_get_vertex_record(lvid)._mirrors;
+      }
+
+      /** \brief Returns the set of gather data address in all mirror procs*/
+      const std::vector<void *>& gather_addrs() const {
+        return graph_ref.l_get_vertex_record(lvid)._gather_addrs;
       }
 
       size_t num_mirrors() const {
