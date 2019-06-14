@@ -119,7 +119,7 @@ namespace graphlab {
       _csc_storage.clear();
       _csr_storage.clear();
       std::vector<VertexData, Graph_alloctor<VertexData>>().swap(vertices);
-      std::vector<EdgeData, Graph_alloctor<EdgeData>>().swap(edges);
+      std::vector<EdgeData>().swap(edges);
       edge_buffer.clear();
     }
 
@@ -338,7 +338,7 @@ namespace graphlab {
         // insert edge data
         edges.reserve(edges.size() + edge_buffer.size());
         edges.insert(edges.end(), edge_buffer.data.begin(), edge_buffer.data.end());
-        std::vector<EdgeData, Graph_alloctor<EdgeData>>().swap(edge_buffer.data);
+        std::vector<EdgeData>().swap(edge_buffer.data);
         edge_buffer.clear();
         size_t begin, end;
         for (size_t i = 0; i < src_counting_prefix_sum.size(); ++i) {
@@ -553,7 +553,7 @@ namespace graphlab {
     /** Stores the edge data and edge relationships. */
     csr_type _csr_storage;
     csr_type _csc_storage;
-    std::vector<EdgeData, Graph_alloctor<EdgeData>> edges;
+    std::vector<EdgeData> edges;
     
     std::vector<GatherData, Graph_alloctor<GatherData>> gathers;
 
@@ -561,7 +561,7 @@ namespace graphlab {
         source, destination, and data. Used for temporary storage. The
         data is transferred into CSR+CSC representation in
         Finalize. This will be cleared after finalized.*/
-    local_edge_buffer<VertexData, EdgeData, Graph_alloctor> edge_buffer;
+    local_edge_buffer<VertexData, EdgeData> edge_buffer;
 
     /**************************************************************************/
     /*                                                                        */
