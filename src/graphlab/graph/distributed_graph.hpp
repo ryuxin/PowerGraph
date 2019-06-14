@@ -463,14 +463,14 @@ namespace graphlab {
       const vertex_data_type& data() const {
 	      void *addr;
 	      addr = graph_ref.l_get_vertex_record(lvid).owner_vertex_addr;
-	      return vertex_data_type(*(vertex_data_type *)addr);
+	      return (*(vertex_data_type *)addr);
       }
 
       /// \brief Returns a mutable reference to the data on the vertex
       vertex_data_type& data() {
 	      void *addr;
 	      addr = graph_ref.l_get_vertex_record(lvid).owner_vertex_addr;
-	      return vertex_data_type(*(vertex_data_type *)addr);
+	      return (*(vertex_data_type *)addr);
       }
 #else
       /// \brief Returns a constant reference to the data on the vertex

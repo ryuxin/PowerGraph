@@ -1927,7 +1927,7 @@ namespace graphlab {
 			ASSERT_TRUE(graph.l_is_master(lvid));
 			gather_type accum = gather_type();
 			foreach(void *addr, vertex.gather_addrs()) {
-				gather_type at = gather_type(*((gather_type *)addr));
+				gather_type &at = (*((gather_type *)addr));
 				accum += at;
 			}
 			vlocks[lvid].lock();

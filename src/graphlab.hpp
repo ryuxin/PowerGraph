@@ -28,6 +28,7 @@
 
 
 // #include <graphlab/aggregation/aggregation_includes.hpp>
+#include <graphlab/bi/bi_allocator.hpp>
 #include <graphlab/engine/engine_includes.hpp>
 #include <graphlab/graph/graph_includes.hpp>
 #include <graphlab/options/options_includes.hpp>
@@ -39,7 +40,6 @@
 #include <graphlab/util/util_includes.hpp>
 #include <graphlab/rpc/rpc_includes.hpp>
 #include <graphlab/ui/metrics_server.hpp>
-#include <graphlab/bi/bi_allocator.hpp>
 
 
 #endif

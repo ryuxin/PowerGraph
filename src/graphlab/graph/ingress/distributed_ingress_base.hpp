@@ -113,7 +113,7 @@ namespace graphlab {
       vertex_id_type gvid;
       void *addr ;
       gather_buffer_record(const vertex_id_type& gvid = vertex_id_type(-1), 
-                         const void *addr = NULL) :
+                         void *addr = NULL) :
         gvid(gvid), addr(addr) { }
       void load(iarchive& arc) { arc >> gvid >> addr; }
       void save(oarchive& arc) const { arc << gvid << addr; }
@@ -461,6 +461,25 @@ namespace graphlab {
         }
       } // end of master handshake
 
+
+      /**************************************************************************/
+      /*                                                                        */
+      /*                        Merge in vid2lvid_buffer                        */
+      /*                                                                        */
+      /**************************************************************************/
+      {
+        if (graph.vid2lvid.size() == 0) {
+          graph.vid2lvid.swap(vid2lvid_buffer);
+        } else {
+          graph.vid2lvid.rehash(graph.vid2lvid.size() + vid2lvid_buffer.size());
+          foreach (const typename vid2lvid_map_type::value_type& pair, vid2lvid_buffer) {
+            graph.vid2lvid.insert(pair);
+          }
+          vid2lvid_buffer.clear();
+          // vid2lvid_buffer.swap(vid2lvid_map_type(-1));
+        }
+      }
+
 #ifdef ENABLE_BI_GRAPH 
       /**************************************************************************/
       /*                                                                        */
@@ -488,7 +507,7 @@ namespace graphlab {
         procid_t recvid;
         while(gather_exchange.recv(recvid, gather_buffer)) {
             foreach(const gather_buffer_record& rec, gather_buffer) {
-		ASSERT_NE(graph.vid2lvid.find(rec.gvid), graph.vid2lvid.end());
+		ASSERT_TRUE(graph.vid2lvid.find(rec.gvid) != graph.vid2lvid.end());
                 lvid_type lvid = graph.vid2lvid[rec.gvid];
 		ASSERT_EQ(rpc.procid(), graph.lvid2record[lvid].owner);
 		graph.lvid2record[lvid]._gather_addrs.push_back(rec.addr);
@@ -529,38 +548,20 @@ namespace graphlab {
 		}
 	  }
         }
-        gather_rexchange.flush();
+        gather_exchange.flush();
 	rpc.barrier();
 
 	// receive all addrs of master vertex 
         while(gather_exchange.recv(recvid, gather_buffer)) {
             foreach(const gather_buffer_record& rec, gather_buffer) {
                 lvid_type lvid = graph.vid2lvid[rec.gvid];
-		graph.lvid2record[lvid]..owner_vertex_addr = rec.addr;
+		graph.lvid2record[lvid].owner_vertex_addr = rec.addr;
             }
         }
 
         gather_exchange.clear();
       }
 #endif      
-
-      /**************************************************************************/
-      /*                                                                        */
-      /*                        Merge in vid2lvid_buffer                        */
-      /*                                                                        */
-      /**************************************************************************/
-      {
-        if (graph.vid2lvid.size() == 0) {
-          graph.vid2lvid.swap(vid2lvid_buffer);
-        } else {
-          graph.vid2lvid.rehash(graph.vid2lvid.size() + vid2lvid_buffer.size());
-          foreach (const typename vid2lvid_map_type::value_type& pair, vid2lvid_buffer) {
-            graph.vid2lvid.insert(pair);
-          }
-          vid2lvid_buffer.clear();
-          // vid2lvid_buffer.swap(vid2lvid_map_type(-1));
-        }
-      }
 
 
       /**************************************************************************/
