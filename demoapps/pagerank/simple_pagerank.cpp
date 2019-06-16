@@ -187,10 +187,7 @@ int main(int argc, char** argv) {
   layout = (struct Mem_layout *)mem;
   std::cout<< "magic: " << layout->magic <<std::endl;
   // Build the graph ----------------------------------------------------------
-  graphlab::BI_Alloctor<graph_type> graph_alloctor;
-  graph_type *graph_mem, *graph;
-  graph_mem = graph_alloctor.allocate(1);
-  graph = new (graph_mem) graph_type(dc, clopts);
+  graph_type *graph = new graph_type(dc, clopts);
   dc.cout() << "Loading graph in format: "<< format << std::endl;
   graph->load_format(graph_dir, format);
   // must call finalize before querying the graph
