@@ -345,6 +345,8 @@ namespace graphlab {
      */
     size_t ncpus;
 
+    size_t tid_start;
+
     /**
      * \brief The local worker threads used by this engine
      */
@@ -800,7 +802,7 @@ namespace graphlab {
       }
       // launch the initialization threads
       size_t i, j;
-      for(j = 0; j < ncpus; ++j) {
+      for(j = tid_start; j < ncpus; ++j) {
 	i = (size_t)convert_to_core_id((int)rmi.procid(), (int)j);
         fiber_control::affinity_type affinity;
         affinity.clear(); affinity.set_bit(i);
@@ -1005,9 +1007,15 @@ namespace graphlab {
                      graph_type& graph,
                      const graphlab_options& opts) :
     rmi(dc, this), graph(graph),
-    ncpus(opts.get_ncpus()),
+    ncpus(opts.get_ncpus() - 1),
     threads(2*1024*1024 /* 2MB stack per fiber*/),
-    thread_barrier(opts.get_ncpus()),
+#ifdef ENABLE_BI_AUTO_FLUSH
+    thread_barrier(opts.get_ncpus() - 2),
+    tid_start(1),
+#else
+    thread_barrier(opts.get_ncpus() - 1),
+    tid_start(0),
+#endif
     max_iterations(-1), snapshot_interval(-1), iteration_counter(0),
     timeout(0), sched_allv(false),
     vprog_exchange(dc),
@@ -1490,7 +1498,7 @@ namespace graphlab {
     message_exchange.partial_flush();
     // Finish sending and receiving all messages
     thread_barrier.wait();
-    if(thread_id == 0) message_exchange.flush();
+    if(thread_id == tid_start) message_exchange.flush();
     thread_barrier.wait();
     recv_messages();
   } // end of exchange_messages
@@ -1551,9 +1559,7 @@ namespace graphlab {
     // Flush the buffer and finish receiving any remaining vertex
     // programs.
     thread_barrier.wait();
-    if(thread_id == 0) {
-      vprog_exchange.flush();
-    }
+    if(thread_id == tid_start) vprog_exchange.flush();
     thread_barrier.wait();
 
     recv_vertex_programs();
@@ -1666,7 +1672,7 @@ namespace graphlab {
     gather_exchange.partial_flush();
       // Finish sending and receiving all gather operations
     thread_barrier.wait();
-    if(thread_id == 0) gather_exchange.flush();
+    if(thread_id == tid_start) gather_exchange.flush();
 #endif	
     thread_barrier.wait();
     recv_gathers();
@@ -1736,8 +1742,8 @@ namespace graphlab {
 #endif
       // Finish sending and receiving all changes due to apply operations
     thread_barrier.wait();
-    if(thread_id == 0) { 
-      vprog_exchange.flush(); vdata_exchange.flush(); 
+    if(thread_id == tid_start) {
+	    vprog_exchange.flush(); 
 #ifndef ENABLE_BI_GRAPH 
 	    vdata_exchange.flush(); 
 #endif
