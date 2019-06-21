@@ -46,11 +46,8 @@ typedef float gather_data_type;
 typedef graphlab::empty edge_data_type;
 
 // The graph type is determined by the vertex and edge data types
-#ifdef ENABLE_BI_GRAPH 
 typedef graphlab::distributed_graph<vertex_data_type, edge_data_type, gather_data_type, graphlab::BI_Alloctor> graph_type;
-#else
-typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
-#endif
+// typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
 
 /*
  * A simple function used by graph.transform_vertices(init_vertex);
@@ -112,6 +109,9 @@ public:
                edge_type& edge) const {
     context.signal(edge.target());
   }
+
+  bool vertex_change_visible(void) const { return (last_change > TOLERANCE); }
+
 }; // end of factorized_pagerank update functor
 
 
@@ -156,8 +156,6 @@ int main(int argc, char** argv) {
                        "sequence of files with prefix saveprefix");
   clopts.attach_option("nnode", num_node,
                        "number of partitions.");
-  clopts.attach_option("ncore", num_core,
-                       "number of cores in each partition.");
 
   if(!clopts.parse(argc, argv)) {
     dc.cout() << "Error in parsing command line arguments." << std::endl;
@@ -172,9 +170,10 @@ int main(int argc, char** argv) {
   // BI init ------------------------------------------------------
   void *mem;
   struct Mem_layout *layout;
-  std::cout << "proc id " << dc.procid() << std::endl;
+  num_core = clopts.get_ncpus();
   id_node = dc.procid();
-  thd_set_affinity(pthread_self(), id_node, 1);
+  std::cout << "proc id " << dc.procid() << " #nodes " << num_node << " #cores " << num_core <<std::endl;
+  thd_set_affinity(pthread_self(), id_node, num_core-1);
   if (!id_node) {
 	mem = bi_global_init_master(id_node, num_node, num_core,
 				    TEST_FILE_NAME, TEST_FILE_SIZE, TEST_FILE_ADDR, 
