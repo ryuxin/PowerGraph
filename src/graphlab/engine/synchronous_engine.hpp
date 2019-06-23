@@ -803,7 +803,8 @@ namespace graphlab {
       // launch the initialization threads
       size_t i, j;
       for(j = tid_start; j < ncpus; ++j) {
-	i = (size_t)convert_to_core_id((int)rmi.procid(), (int)j);
+       	if (ncpus > NUM_CORE_PER_NODE) i = j;
+	else i = (size_t)convert_to_core_id((int)rmi.procid(), (int)j);
         fiber_control::affinity_type affinity;
         affinity.clear(); affinity.set_bit(i);
         boost::function<void(void)> invoke = boost::bind(member_fun, this, j);

@@ -222,6 +222,8 @@ int main(int argc, char** argv) {
     clopts.get_engine_args().set_option("sched_allv", true);
   }
 
+  if (num_core > NUM_CORE_PER_NODE) thd_set_affinity_to_core(pthread_self(), num_core-1);
+  else thd_set_affinity(pthread_self(), id_node, num_core-1);
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
