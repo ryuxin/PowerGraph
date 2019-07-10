@@ -143,22 +143,30 @@ namespace graphlab {
       if(vid >= vertices.size()) {
         // Enable capacity doubling if resizing beyond capacity
         if(vid >= vertices.capacity()) {
-          const size_t new_size = std::max(2 * vertices.capacity(),
-                                           size_t(vid));
+          const size_t new_size = std::max(2 * vertices.capacity(), size_t(vid));
           vertices.reserve(new_size);
-          gathers.reserve(new_size);
         }
         vertices.resize(vid+1);
-        gathers.resize(vid+1);
       }
       vertices[vid] = vdata;
+#ifdef ENABLE_BI_GRAPH
+      if(vid >= gathers.size()) {
+        if(vid >= gathers.capacity()) {
+          const size_t new_size = std::max(2 * gathers.capacity(), size_t(vid));
+          gathers.reserve(new_size);
+        }
+        gathers.resize(vid+1);
+      }
       gathers[vid] = GatherData();
+#endif
     } // End of add vertex;
 
     void reserve(size_t num_vertices) {
       ASSERT_GE(num_vertices, vertices.size());
       vertices.reserve(num_vertices);
+#ifdef ENABLE_BI_GRAPH
       gathers.reserve(num_vertices);
+#endif
     }
 
     /**
@@ -168,7 +176,9 @@ namespace graphlab {
     void resize(size_t num_vertices ) {
       ASSERT_GE(num_vertices, vertices.size());
       vertices.resize(num_vertices);
+#ifdef ENABLE_BI_GRAPH
       gathers.resize(num_vertices);
+#endif
     } // End of resize
 
     void reserve_edge_space(size_t n) {
@@ -254,7 +264,7 @@ namespace graphlab {
       ASSERT_LT(v, vertices.size());
       return vertices[v];
     } // end of data(v)
-    
+#ifdef ENABLE_BI_GRAPH    
     /** \brief Returns the address of the data stored on the vertex v. */
     void * vertex_addr(lvid_type v) {
       ASSERT_LT(v, vertices.size());
@@ -281,6 +291,7 @@ namespace graphlab {
       gathers[v] = a;
       clwb_range_opt(gather_addr(v), sizeof(GatherData));
     } // end of gather_data_set(v)
+#endif
 
     /**
      * \brief Finalize the local_graph data structure by
@@ -554,8 +565,10 @@ namespace graphlab {
     csr_type _csr_storage;
     csr_type _csc_storage;
     std::vector<EdgeData> edges;
-    
+   
+#ifdef ENABLE_BI_GRAPH  
     std::vector<GatherData, Graph_alloctor<GatherData>> gathers;
+#endif
 
     /** The edge data is a vector of edges where each edge stores its
         source, destination, and data. Used for temporary storage. The
