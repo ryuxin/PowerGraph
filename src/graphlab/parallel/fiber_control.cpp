@@ -27,6 +27,7 @@
 #include <graphlab/logger/assertions.hpp>
 #include <graphlab/rpc/dc.hpp>
 #include <graphlab/macros_def.hpp>
+#include <graphlab/bi/bi_allocator.hpp>
 //#include <valgrind/valgrind.h>
 namespace graphlab {
 
@@ -210,6 +211,8 @@ void fiber_control::worker_init(size_t workerid) {
   t->garbage = NULL;
   t->workerid = workerid;
   t->parent = this;
+  thd_set_affinity_to_core(pthread_self(), workerid);
+  setup_core_id(workerid);
 
   schedule[workerid].waiting = true;
   schedule[workerid].active_lock.lock();
