@@ -212,7 +212,7 @@ void fiber_control::worker_init(size_t workerid) {
   t->workerid = workerid;
   t->parent = this;
   thd_set_affinity_to_core(pthread_self(), workerid);
-  setup_core_id(workerid);
+  setup_core_id(workerid % NUM_CORE_PER_NODE);
 
   schedule[workerid].waiting = true;
   schedule[workerid].active_lock.lock();
