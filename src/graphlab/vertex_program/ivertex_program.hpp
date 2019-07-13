@@ -764,6 +764,10 @@ namespace graphlab {
     virtual void post_local_gather(gather_type&) const {
     }
 
+#ifdef ENABLE_BI_GRAPH 
+    /* if this vertex should be added to write set, used by bi */
+    virtual bool vertex_change_visible(const vertex_type& vertex) const { return true; }
+#endif
   };  // end of ivertex_program
  
 }; //end of namespace graphlab

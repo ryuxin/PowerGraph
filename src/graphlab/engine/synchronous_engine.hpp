@@ -28,6 +28,7 @@
 #include <deque>
 #include <boost/bind.hpp>
 
+#include <graphlab/bi/bi_allocator.hpp>
 #include <graphlab/engine/iengine.hpp>
 
 #include <graphlab/vertex_program/ivertex_program.hpp>
@@ -695,6 +696,18 @@ namespace graphlab {
      */
     void init();
 
+#ifdef ENABLE_BI_GRAPH
+    atomic<size_t> shared_flush_counter;
+    atomic<size_t> shared_vertex_flush_counter;
+#ifndef ENABLE_BI_AUTO_FLUSH
+    // flush cache of gather phase, this can be called both in parallel and monolithic (with id to 0)
+    void flush_gathers_ext(size_t thread_id, atomic<size_t> &cnt);
+    void flush_gathers_per_core(size_t thread_id);
+    // flush cache of apply phase, *_per_core runs in parallel and the other is single thread
+    void flush_vertex_ext(size_t thread_id, atomic<size_t> &cnt);
+    void flush_vertexs_per_core(size_t thread_id);
+#endif
+#endif
 
   private:
 
@@ -918,7 +931,7 @@ namespace graphlab {
      * data and should be called after a flush of the vertex data
      * exchange.
      */
-    void recv_vertex_data();
+    void recv_vertex_data(size_t thread_id);
 
     /**
      * \brief Send the gather value for the vertex id to its master.
@@ -937,7 +950,7 @@ namespace graphlab {
      * buffered exchange and should be called after the buffered
      * exchange has been flushed
      */
-    void recv_gathers();
+    void recv_gathers(size_t thread_id = 0);
 
     /**
      * \brief Send the accumulated message for the local vertex to its
@@ -1396,6 +1409,11 @@ namespace graphlab {
        *   2) No minor-step bits are set
        */
 
+#ifdef ENABLE_BI_GRAPH 
+      run_synchronous( &synchronous_engine::flush_gathers_per_core);
+      run_synchronous( &synchronous_engine::recv_gathers);
+#endif
+
       // Execute Apply Operations -------------------------------------------
       // Run the apply function on all active vertices
       // if (rmi.procid() == 0) std::cout << "Applying..." << std::endl;
@@ -1411,6 +1429,9 @@ namespace graphlab {
        *      synchronized with the mirrors.
        */
 
+#ifdef ENABLE_BI_GRAPH 
+      run_synchronous( &synchronous_engine::flush_vertexs_per_core);
+#endif
 
       // Execute Scatter Operations -----------------------------------------
       // Execute each of the scatters on all minor-step active vertices.
@@ -1674,9 +1695,9 @@ namespace graphlab {
       // Finish sending and receiving all gather operations
     thread_barrier.wait();
     if(thread_id == tid_start) gather_exchange.flush();
-#endif	
     thread_barrier.wait();
     recv_gathers();
+#endif	
   } // end of execute_gathers
 
 
@@ -1721,8 +1742,13 @@ namespace graphlab {
         // determine if a scatter operation is needed
         const vertex_program_type& const_vprog = vertex_programs[lvid];
         const vertex_type const_vertex = vertex;
+#ifdef ENABLE_BI_GRAPH 
+	if (const_vprog.vertex_change_visible(const_vertex)) {
+	       	clwb_range_opt(vertex.get_owner_addr(), sizeof(vertex_data_type));
+#else
         if(const_vprog.scatter_edges(context, const_vertex) !=
            graphlab::NO_EDGES) {
+#endif
           active_minorstep.set_bit(lvid);
           sync_vertex_program(lvid, thread_id);
         } else { // we are done so clear the vertex program
@@ -1731,7 +1757,7 @@ namespace graphlab {
       // try to receive vertex data
         if(++vcount % TRY_RECV_MOD == 0) {
           recv_vertex_programs();
-          recv_vertex_data();
+          recv_vertex_data(thread_id);
         }
       }
     } // end of loop over vertices to run apply
@@ -1751,7 +1777,7 @@ namespace graphlab {
     }
     thread_barrier.wait();
     recv_vertex_programs();
-    recv_vertex_data();
+    recv_vertex_data(thread_id);
   } // end of execute_applys
 
 
@@ -1857,7 +1883,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_vertex_data() {
+  recv_vertex_data(const size_t thread_id) {
 	  return ;
   } // end of recv vertex data
 #else
@@ -1878,7 +1904,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_vertex_data() {
+  recv_vertex_data(const size_t thread_id) {
     typename vdata_exchange_type::recv_buffer_type recv_buffer;
     while(vdata_exchange.recv(recv_buffer)) {
       for (size_t i = 0;i < recv_buffer.size(); ++i) {
@@ -1907,14 +1933,16 @@ namespace graphlab {
       }
     } else {
 	 local_vertex_type vertex = graph.l_vertex(lvid);
-	 vertex.gather_data_set(accum);
+	 if (vertex.gather_data() != accum) {
+		 vertex.gather_data_set(accum);
+	 }
     }
     vlocks[lvid].unlock();
   } // end of sync_gather
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_gathers() {
+  recv_gathers(const size_t thread_id) {
 	  fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;  // allocate a word size = 64bits
 	  while(1) {
 		// increment by a word at a time
@@ -1933,9 +1961,15 @@ namespace graphlab {
 			// Only master vertices can be active in a super-step
 			ASSERT_TRUE(graph.l_is_master(lvid));
 			gather_type accum = gather_type();
+			bool accum_is_set = false;
 			foreach(void *addr, vertex.gather_addrs()) {
 				gather_type &at = (*((gather_type *)addr));
-				accum += at;
+				if (accum_is_set) {
+					accum += at;
+				} else {
+					accum = at;
+					accum_is_set = true;
+				}
 			}
 			vlocks[lvid].lock();
 			if( has_gather_accum.get(lvid) ) {
@@ -1970,7 +2004,7 @@ namespace graphlab {
 
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
-  recv_gathers() {
+  recv_gathers(const size_t thread_id) {
     typename gather_exchange_type::recv_buffer_type recv_buffer;
     while(gather_exchange.recv(recv_buffer)) {
       for (size_t i = 0;i < recv_buffer.size(); ++i) {
@@ -2029,8 +2063,72 @@ namespace graphlab {
   } // end of recv_messages
 
 
+#ifdef ENABLE_BI_GRAPH
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  flush_gathers_ext(const size_t thread_id, atomic<size_t> &cnt) {
+	  fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;  // allocate a word size = 64bits
+	  while(1) {
+		// increment by a word at a time
+		lvid_type lvid_block_start = cnt.inc_ret_last(8 * sizeof(size_t));
+		if (lvid_block_start >= graph.num_local_vertices()) break;
+		// get the bit field from has_message
+		size_t lvid_bit_block = active_superstep.containing_word(lvid_block_start);
+		if (lvid_bit_block == 0) continue;
+		// initialize a word sized bitfield
+		local_bitset.clear();
+		local_bitset.initialize_from_mem(&lvid_bit_block, sizeof(size_t));
+		foreach(size_t lvid_block_offset, local_bitset) {
+			lvid_type lvid = lvid_block_start + lvid_block_offset;
+			if (lvid >= graph.num_local_vertices()) break;
+			local_vertex_type vertex = graph.l_vertex(lvid);
+			// Only master vertices can be active in a super-step
+			ASSERT_TRUE(graph.l_is_master(lvid));
+			foreach(void *addr, vertex.gather_addrs()) {
+				clflush_range_opt(addr, sizeof(gather_type));
+			}
+		}
+	  }
+  } // end of flush_gather
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  flush_gathers_per_core(size_t thread_id) {
+	  flush_gathers_ext(thread_id, shared_lvid_counter); 
+  }
 
+  
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  flush_vertex_ext(const size_t thread_id, atomic<size_t> &cnt) {
+	  fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;  // allocate a word size = 64bits
+	  while(1) {
+		// increment by a word at a time
+		lvid_type lvid_block_start = cnt.inc_ret_last(8 * sizeof(size_t));
+		if (lvid_block_start >= graph.num_local_vertices()) break;
+		// get the bit field from has_message
+		size_t lvid_bit_block = active_minorstep.containing_word(lvid_block_start);
+		if (lvid_bit_block == 0) continue;
+		// initialize a word sized bitfield
+		local_bitset.clear();
+		local_bitset.initialize_from_mem(&lvid_bit_block, sizeof(size_t));
+		foreach(size_t lvid_block_offset, local_bitset) {
+			lvid_type lvid = lvid_block_start + lvid_block_offset;
+			if (lvid >= graph.num_local_vertices()) break;
+			local_vertex_type vertex = graph.l_vertex(lvid);
+			// Only minors vertices need to flush its master
+			if (!graph.l_is_master(lvid)) {
+				clflush_range_opt(vertex.get_owner_addr(), sizeof(gather_type));
+			}
+		}
+	  }
+  }
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  flush_vertexs_per_core(const size_t thread_id) {
+	  flush_vertex_ext(thread_id, shared_lvid_counter); 
+  }
 
+#endif
 
 
 
