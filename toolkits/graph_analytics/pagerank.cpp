@@ -27,6 +27,11 @@
 #include <graphlab.hpp>
 // #include <graphlab/macros_def.hpp>
 
+#define TEST_FILE_NAME "/lfs/cache_test"
+#define TEST_FILE_SIZE (25*1024*1024*1024UL)
+//#define TEST_FILE_ADDR ((void *)0x7ff5a8000000)
+#define TEST_FILE_ADDR ((void *)NULL)
+
 // Global random reset probability
 double RESET_PROB = 0.15;
 
@@ -36,20 +41,26 @@ size_t ITERATIONS = 0;
 
 bool USE_DELTA_CACHE = false;
 
+static int num_node, num_core, id_node = 0;
+
 // The vertex data is just the pagerank value (a double)
 typedef double vertex_data_type;
+typedef double gather_data_type;
 
 // There is no edge data in the pagerank application
 typedef graphlab::empty edge_data_type;
 
 // The graph type is determined by the vertex and edge data types
-typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
+typedef graphlab::distributed_graph<vertex_data_type, edge_data_type, gather_data_type, graphlab::BI_Alloctor> graph_type;
+//typedef graphlab::distributed_graph<vertex_data_type, edge_data_type> graph_type;
 
 /*
  * A simple function used by graph.transform_vertices(init_vertex);
  * to initialize the vertes data.
  */
-void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
+void init_vertex(graph_type::vertex_type& vertex) { 
+	vertex.data() = 1; 
+}
 
 
 
@@ -74,7 +85,7 @@ void init_vertex(graph_type::vertex_type& vertex) { vertex.data() = 1; }
  * graphlab::IS_POD_TYPE it must implement load and save functions.
  */
 class pagerank :
-  public graphlab::ivertex_program<graph_type, double> {
+  public graphlab::ivertex_program<graph_type, gather_data_type> {
 
   double last_change;
 public:
@@ -100,6 +111,7 @@ public:
 
     const double newval = (1.0 - RESET_PROB) * total + RESET_PROB;
     last_change = (newval - vertex.data());
+//    std::cout << "dbg pagerank id "<<vertex.id() <<" data "<<vertex.data()<<" new "<<newval<<" gatehr "<<total<<std::endl;
     vertex.data() = newval;
     if (ITERATIONS) context.signal(vertex);
   }
@@ -142,6 +154,13 @@ public:
   void load(graphlab::iarchive& iarc) {
     if (ITERATIONS == 0) iarc >> last_change;
   }
+#ifdef ENABLE_BI_GRAPH 
+  bool vertex_change_visible(const vertex_type& vertex) const { 
+	  return vertex.has_replica() && (std::fabs(last_change) > TOLERANCE);
+	  //return false;
+	  //return true;
+  }
+#endif
 
 }; // end of factorized_pagerank update functor
 
@@ -203,6 +222,8 @@ int main(int argc, char** argv) {
   clopts.attach_option("saveprefix", saveprefix,
                        "If set, will save the resultant pagerank to a "
                        "sequence of files with prefix saveprefix");
+  clopts.attach_option("nnode", num_node,
+                       "number of partitions.");
 
   if(!clopts.parse(argc, argv)) {
     dc.cout() << "Error in parsing command line arguments." << std::endl;
@@ -222,8 +243,27 @@ int main(int argc, char** argv) {
     clopts.get_engine_args().set_option("sched_allv", true);
   }
 
+  // BI init ------------------------------------------------------
+  void *mem;
+  struct Mem_layout *layout;
+  num_core = clopts.get_ncpus();
+  id_node = dc.procid();
+  std::cout << "proc id " << dc.procid() << " #nodes " << num_node << " #cores " << num_core <<std::endl;
   if (num_core > NUM_CORE_PER_NODE) thd_set_affinity_to_core(pthread_self(), num_core-1);
   else thd_set_affinity(pthread_self(), id_node, num_core-1);
+  if (!id_node) {
+	  mem = bi_global_init_master(id_node, num_node, num_core,
+			  	      TEST_FILE_NAME, TEST_FILE_SIZE, TEST_FILE_ADDR,
+				      "graph page rank benchmark");
+  } else {
+	  mem = bi_global_init_slave(id_node, num_node, num_core,
+			  	     TEST_FILE_NAME, TEST_FILE_SIZE, TEST_FILE_ADDR);
+	  mem_mgr_init();
+  }
+  setup_core_id(num_core-1);
+  layout = (struct Mem_layout *)mem;
+  std::cout<<"proc "<<dc.procid()<< " magic: " << layout->magic <<std::endl;
+
   // Build the graph ----------------------------------------------------------
   graph_type graph(dc, clopts);
   if(powerlaw > 0) { // make a synthetic graph
@@ -250,7 +290,14 @@ int main(int argc, char** argv) {
   // Running The Engine -------------------------------------------------------
   graphlab::omni_engine<pagerank> engine(dc, graph, exec_type, clopts);
   engine.signal_all();
+#ifdef ENABLE_BI_AUTO_FLUSH
+  graphlab::start_bi_server(id_node, num_core-1);
+#endif
+//  graph.save_format("/root/Desktop/yuxin/g.tsv", "tsv", false, 1);
   engine.start();
+#ifdef ENABLE_BI_AUTO_FLUSH
+  bi_server_stop();
+#endif
   const double runtime = engine.elapsed_seconds();
   dc.cout() << "Finished Running engine in " << runtime
             << " seconds." << std::endl;
