@@ -1320,8 +1320,7 @@ namespace graphlab {
 
     float last_print = -5;
     if (rmi.procid() == 0) {
-      logstream(LOG_EMPH) << "Iteration counter will only output every 5 seconds."
-                        << std::endl;
+//      logstream(LOG_EMPH) << "Iteration counter will only output every 5 seconds." << std::endl;
     }
     // Program Main loop ====================================================
     while(iteration_counter < max_iterations && !force_abort ) {
@@ -1335,9 +1334,9 @@ namespace graphlab {
       bool print_this_round = (elapsed_seconds() - last_print) >= 5;
 
       if(rmi.procid() == 0 && print_this_round) {
-        logstream(LOG_EMPH)
-          << rmi.procid() << ": Starting iteration: " << iteration_counter
-          << std::endl;
+//        logstream(LOG_EMPH)
+//          << rmi.procid() << ": Starting iteration: " << iteration_counter
+//         << std::endl;
         last_print = elapsed_seconds();
       }
       // Reset Active vertices ----------------------------------------------
@@ -1440,8 +1439,9 @@ namespace graphlab {
        * Post conditions:
        *   1) NONE
        */
-      if(rmi.procid() == 0 && print_this_round)
-        logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
+      if(rmi.procid() == 0 && print_this_round) {
+//        logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
+      }
       // probe the aggregator
       aggregator.tick_synchronous();
 
@@ -1468,7 +1468,7 @@ namespace graphlab {
     size_t global_completed = completed_applys;
     rmi.all_reduce(global_completed);
     completed_applys = global_completed;
-    rmi.cout() << "Updates: " << completed_applys.value << "\n";
+//    rmi.cout() << "Updates: " << completed_applys.value << "\n";
     if (rmi.procid() == 0) {
       logstream(LOG_INFO) << "Compute Balance: ";
       for (size_t i = 0;i < all_compute_time_vec.size(); ++i) {
@@ -1744,6 +1744,7 @@ namespace graphlab {
         const vertex_type const_vertex = vertex;
 #ifdef ENABLE_BI_GRAPH 
 	if (const_vprog.vertex_change_visible(const_vertex)) {
+//		std::cout<<"dbg id "<<rmi.procid()<<" ver lid "<<lvid<<" gid "<<vertex.id()<<" addr "<<vertex.get_owner_addr()<<std::endl;
 	       	clwb_range_opt(vertex.get_owner_addr(), sizeof(vertex_data_type));
 #else
         if(const_vprog.scatter_edges(context, const_vertex) !=
@@ -1925,6 +1926,7 @@ namespace graphlab {
   sync_gather(lvid_type lvid, const gather_type& accum, const size_t thread_id) {
     vlocks[lvid].lock();
     if(graph.l_is_master(lvid)) {
+//	  std::cout<<"dbg gatehr sync master id "<<lvid<<" atehr "<<accum<<std::endl;
       if(has_gather_accum.get(lvid)) {
         gather_accum[lvid] += accum;
       } else {
@@ -1932,9 +1934,11 @@ namespace graphlab {
         has_gather_accum.set_bit(lvid);
       }
     } else {
+//	  std::cout<<"dbg gatehr sync replica id "<<lvid<<" atehr "<<accum<<" adr "<<graph.get_local_graph().gather_addr(lvid)<<std::endl;
 	 local_vertex_type vertex = graph.l_vertex(lvid);
 	 if (vertex.gather_data() != accum) {
 		 vertex.gather_data_set(accum);
+//		std::cout<<"dbg snyc gathe id "<<rmi.procid()<<" s2 "<<accum.bitmask.size()<<std::endl;
 	 }
     }
     vlocks[lvid].unlock();
@@ -1978,14 +1982,17 @@ namespace graphlab {
 				gather_accum[lvid] = accum;
 				has_gather_accum.set_bit(lvid);
 			}
+//			std::cout<<"dbg gatehr recv id "<<lvid<<" gahter "<<gather_accum[lvid]<<std::endl;
 			vlocks[lvid].unlock();
 		}
 	  }
   } // end of recv_gather
+
 #else
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   sync_gather(lvid_type lvid, const gather_type& accum, const size_t thread_id) {
+//	  std::cout<<"dbg gatehr sync id "<<lvid<<" atehr "<<accum<<std::endl;
     if(graph.l_is_master(lvid)) {
       vlocks[lvid].lock();
       if(has_gather_accum.get(lvid)) {

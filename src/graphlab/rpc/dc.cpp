@@ -163,7 +163,7 @@ distributed_control::~distributed_control() {
   last_dc = NULL;
   last_dc_procid = 0;
   distributed_services->full_barrier();
-  logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
+//  logstream(LOG_INFO) << "Shutting down distributed control " << std::endl;
   FREE_CALLBACK_EVENT(EVENT_NETWORK_BYTES);
   FREE_CALLBACK_EVENT(EVENT_RPC_CALLS);
   // call all deletion callbacks

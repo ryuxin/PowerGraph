@@ -301,6 +301,7 @@ namespace graphlab {
               updated_lvids.set_bit(target_lvid);
             }
             graph.local_graph.add_edge(source_lvid, target_lvid, rec.edata);
+            //std::cout << "add edge " << rec.source << "\t" << rec.target << " proc " << rpc.procid() <<std::endl;
             // std::cout << "add edge " << rec.source << "\t" << rec.target << std::endl;
           } // end of loop over add edges
         } // end for loop over buffers
@@ -339,6 +340,7 @@ namespace graphlab {
         while(vertex_exchange.recv(sending_proc, vertex_buffer)) {
           foreach(const vertex_buffer_record& rec, vertex_buffer) {
             lvid_type lvid(-1);
+            //std::cout << "add ver " << rec.vid << " proc " << rpc.procid() <<std::endl;
             if (graph.vid2lvid.find(rec.vid) == graph.vid2lvid.end()) {
               if (vid2lvid_buffer.find(rec.vid) == vid2lvid_buffer.end()) {
                 lvid = lvid_start + vid2lvid_buffer.size();
@@ -363,7 +365,6 @@ namespace graphlab {
       } // end of loop to populate vrecmap
 
 
-
       /**************************************************************************/
       /*                                                                        */
       /*        assign vertex data and allocate vertex (meta)data  space        */
@@ -378,6 +379,7 @@ namespace graphlab {
             vertex_record& vrec = graph.lvid2record[pair.second];
             vrec.gvid = pair.first;
             vrec.owner = graph_hash::hash_vertex(pair.first) % rpc.numprocs();
+//            std::cout << " gvid " <<vrec.gvid <<" owner "<< vrec.owner << " proc " << rpc.procid() <<std::endl;
         }
         ASSERT_EQ(local_nverts, graph.local_graph.num_vertices());
         ASSERT_EQ(graph.lvid2record.size(), graph.local_graph.num_vertices());
@@ -632,6 +634,7 @@ namespace graphlab {
 
       // compute replicas
       swap_counts[rpc.procid()] = graph.num_local_vertices();
+//      std::cout<< "nloc " <<  graph.num_local_vertices() << " rpc " << rpc.procid() << std::endl;
       rpc.all_gather(swap_counts);
       graph.nreplicas = 0;
       foreach(size_t count, swap_counts) graph.nreplicas += count;
