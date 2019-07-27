@@ -31,6 +31,15 @@
 
 #include <graphlab.hpp>
 
+#define TEST_FILE_NAME "/lfs/cache_test"
+#define TEST_FILE_SIZE (25*1024*1024*1024UL)
+//#define TEST_FILE_ADDR ((void *)0x7ff5a8000000)
+#define TEST_FILE_ADDR ((void *)NULL)
+
+typedef std::vector<bool, graphlab::BI_Alloctor<bool>> vec_bool_type;
+//typedef std::vector<bool> vec_bool_type;
+typedef std::vector<vec_bool_type, graphlab::BI_Alloctor<vec_bool_type>> vec_vec_bool_type;
+//typedef std::vector<vec_bool_type> vec_vec_bool_type;
 //helper function
 float myrand() {
   return static_cast<float>(rand() / (RAND_MAX + 1.0));
@@ -47,10 +56,12 @@ size_t hash_value() {
 
 const size_t DUPULICATION_OF_BITMASKS = 10;
 
+static int num_node, num_core, id_node = 0;
+
 struct vdata {
   //use two bitmasks for consistency
-  std::vector<std::vector<bool> > bitmask1;
-  std::vector<std::vector<bool> > bitmask2;
+  vec_vec_bool_type bitmask1;
+  vec_vec_bool_type bitmask2;
   //indicate which is the bitmask for reading (or writing)
   bool odd_iteration;
   vdata() :
@@ -58,10 +69,10 @@ struct vdata {
   }
   //for exact counting (but needs large memory)
   void create_bitmask(size_t id) {
-    std::vector<bool> mask1(id + 2, 0);
+    vec_bool_type mask1(id + 2, 0);
     mask1[id] = 1;
     bitmask1.push_back(mask1);
-    std::vector<bool> mask2(id + 2, 0);
+    vec_bool_type mask2(id + 2, 0);
     mask2[id] = 1;
     bitmask2.push_back(mask2);
   }
@@ -69,10 +80,10 @@ struct vdata {
   void create_hashed_bitmask(size_t id) {
     for (size_t i = 0; i < DUPULICATION_OF_BITMASKS; ++i) {
       size_t hash_val = hash_value();
-      std::vector<bool> mask1(hash_val + 2, 0);
+      vec_bool_type mask1(hash_val + 2, 0);
       mask1[hash_val] = 1;
       bitmask1.push_back(mask1);
-      std::vector<bool> mask2(hash_val + 2, 0);
+      vec_bool_type mask2(hash_val + 2, 0);
       mask2[hash_val] = 1;
       bitmask2.push_back(mask2);
     }
@@ -99,14 +110,14 @@ struct vdata {
     for (size_t a = 0; a < num; ++a) {
       size_t size = 0;
       iarc >> size;
-      std::vector<bool> mask1;
+      vec_bool_type mask1;
       for (size_t i = 0; i < size; ++i) {
         bool element = true;
         iarc >> element;
         mask1.push_back(element);
       }
       bitmask1.push_back(mask1);
-      std::vector<bool> mask2;
+      vec_bool_type mask2;
       for (size_t i = 0; i < size; ++i) {
         bool element = true;
         iarc >> element;
@@ -118,21 +129,14 @@ struct vdata {
   }
 };
 
-typedef graphlab::distributed_graph<vdata, graphlab::empty> graph_type;
-
-//initialize bitmask
-void initialize_vertex(graph_type::vertex_type& v) {
-  v.data().create_bitmask(v.id());
-}
-//initialize bitmask
-void initialize_vertex_with_hash(graph_type::vertex_type& v) {
-  v.data().create_hashed_bitmask(v.id());
-}
 
 //helper function to compute bitwise-or
-void bitwise_or(std::vector<std::vector<bool> >& v1,
-    const std::vector<std::vector<bool> >& v2) {
-  for (size_t a = 0; a < v1.size(); ++a) {
+void bitwise_or(vec_vec_bool_type& v1,
+    const vec_vec_bool_type& v2) {
+#ifdef ENABLE_BI_GRAPH 
+	if (v1.size() > v2.size()) return ;
+#endif
+  for (size_t a = 0; a < v1.size() && a<v2.size(); ++a) {
     while (v1[a].size() < v2[a].size()) {
       v1[a].push_back(false);
     }
@@ -143,12 +147,12 @@ void bitwise_or(std::vector<std::vector<bool> >& v1,
 }
 
 struct bitmask_gatherer {
-  std::vector<std::vector<bool> > bitmask;
+  vec_vec_bool_type bitmask;
 
   bitmask_gatherer() :
     bitmask() {
   }
-  explicit bitmask_gatherer(const std::vector<std::vector<bool> > & in_b) :
+  explicit bitmask_gatherer(const vec_vec_bool_type & in_b) :
     bitmask(){
     for(size_t i=0;i<in_b.size();++i){
       bitmask.push_back(in_b[i]);
@@ -159,6 +163,10 @@ struct bitmask_gatherer {
   bitmask_gatherer& operator+=(const bitmask_gatherer& other) {
     bitwise_or(bitmask, other.bitmask);
     return *this;
+  }
+
+  bool operator!=(const bitmask_gatherer& other) {
+    return true;
   }
 
   void save(graphlab::oarchive& oarc) const {
@@ -178,7 +186,7 @@ struct bitmask_gatherer {
     for (size_t a = 0; a < num; ++a) {
       size_t size = 0;
       iarc >> size;
-      std::vector<bool> mask1;
+      vec_bool_type mask1;
       for (size_t i = 0; i < size; ++i) {
         bool element = true;
         iarc >> element;
@@ -188,6 +196,18 @@ struct bitmask_gatherer {
     }
   }
 };
+
+//typedef graphlab::distributed_graph<vdata, graphlab::empty> graph_type;
+typedef graphlab::distributed_graph<vdata, graphlab::empty, bitmask_gatherer, graphlab::BI_Alloctor> graph_type;
+
+//initialize bitmask
+void initialize_vertex(graph_type::vertex_type& v) {
+	v.data().create_bitmask(v.id());
+}
+//initialize bitmask
+void initialize_vertex_with_hash(graph_type::vertex_type& v) {
+	v.data().create_hashed_bitmask(v.id());
+}
 
 //The next bitmask b(h + 1; i) of i at the hop h + 1 is given as:
 //b(h + 1; i) = b(h; i) BITWISE-OR {b(h; k) | source = i & target = k}.
@@ -231,15 +251,20 @@ public:
   void scatter(icontext_type& context, const vertex_type& vertex,
       edge_type& edge) const {
   }
+#ifdef ENABLE_BI_GRAPH 
+  bool vertex_change_visible(const vertex_type& vertex) const {
+    return vertex.has_replica();
+  }
+#endif
 };
 
 //copy the updated bitmask to the other
 void copy_bitmasks(graph_type::vertex_type& vdata) {
-  if (vdata.data().odd_iteration == false) { //odd_iteration has just finished
-    vdata.data().bitmask2 = vdata.data().bitmask1;
-  } else {
-    vdata.data().bitmask1 = vdata.data().bitmask2;
-  }
+	if (vdata.data().odd_iteration == false) { //odd_iteration has just finished
+		vdata.data().bitmask2 = vdata.data().bitmask1;
+	} else {
+		vdata.data().bitmask1 = vdata.data().bitmask2;
+	}
 }
 
 //count the number of vertices reached in the current hop
@@ -252,7 +277,7 @@ size_t absolute_vertex_data(const graph_type::vertex_type& vertex) {
 }
 
 //count the number of vertices reached in the current hop with Flajolet & Martin counting method
-size_t approximate_pair_number(std::vector<std::vector<bool> > bitmask) {
+size_t approximate_pair_number(vec_vec_bool_type bitmask) {
   float sum = 0.0;
   for (size_t a = 0; a < bitmask.size(); ++a) {
     for (size_t i = 0; i < bitmask[a].size(); ++i) {
@@ -296,6 +321,8 @@ int main(int argc, char** argv) {
   clopts.attach_option("use-sketch", use_sketch,
                        "If true, will use Flajolet & Martin bitmask, "
                        "which is more compact and faster.");
+  clopts.attach_option("nnode", num_node,
+		       "number of partitions.");
 
   if (!clopts.parse(argc, argv)){
     dc.cout() << "Error in parsing command line arguments." << std::endl;
@@ -306,15 +333,35 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  // BI init ------------------------------------------------------
+  void *mem;
+  struct Mem_layout *layout;
+  num_core = clopts.get_ncpus();
+  id_node = dc.procid();
+  std::cout << "proc id " << dc.procid() << " #nodes " << num_node << " #cores " << num_core <<std::endl;
+  if (num_core > NUM_CORE_PER_NODE) thd_set_affinity_to_core(pthread_self(), num_core-1);
+  else thd_set_affinity(pthread_self(), id_node, num_core-1);
+  if (!id_node) {
+       	  mem = bi_global_init_master(id_node, num_node, num_core,
+			              TEST_FILE_NAME, TEST_FILE_SIZE, TEST_FILE_ADDR,
+				      "approximate diameter");
+  } else {
+	 mem = bi_global_init_slave(id_node, num_node, num_core,
+			            TEST_FILE_NAME, TEST_FILE_SIZE, TEST_FILE_ADDR);
+	 mem_mgr_init();
+  }
+  setup_core_id(num_core-1);
+  layout = (struct Mem_layout *)mem;
+  std::cout<<"proc "<<dc.procid()<< " magic: " << layout->magic <<std::endl;
+
   //load graph
   graph_type graph(dc, clopts);
   dc.cout() << "Loading graph in format: "<< format << std::endl;
   graph.load_format(graph_dir, format);
   graph.finalize();
 
-  time_t start, end;
+  time_t start, end, tot = 0, ts, te;
   //initialize vertices
-  time(&start);
   if (use_sketch == false)
     graph.transform_vertices(initialize_vertex);
   else
@@ -322,35 +369,43 @@ int main(int argc, char** argv) {
 
   graphlab::omni_engine<one_hop> engine(dc, graph, exec_type, clopts);
 
+#ifdef ENABLE_BI_AUTO_FLUSH
+    graphlab::start_bi_server(id_node, num_core-1);
+#endif
+
   //main iteration
   size_t previous_count = 0;
   size_t diameter = 0;
+  time(&ts);
   for (size_t iter = 0; iter < 100; ++iter) {
     engine.signal_all();
+    time(&start);
     engine.start();
+    time(&end);
 
     graph.transform_vertices(copy_bitmasks);
+//    std::cout<<"dbg after ransfor"<<std::endl;
 
     size_t current_count = 0;
-    if (use_sketch == false)
-      current_count = graph.map_reduce_vertices<size_t>(absolute_vertex_data);
-    else
-      current_count = graph.map_reduce_vertices<size_t>(
-          absolute_vertex_data_with_hash);
-    dc.cout() << iter + 1 << "-th hop: " << current_count
-        << " vertex pairs are reached\n";
-    if (iter > 0
-        && (float) current_count
-            < (float) previous_count * (1.0 + termination_criteria)) {
+    if (use_sketch == false)  current_count = graph.map_reduce_vertices<size_t>(absolute_vertex_data);
+    else current_count = graph.map_reduce_vertices<size_t>(absolute_vertex_data_with_hash);
+    dc.cout() << iter + 1 << "-th hop: " << current_count << " vertex pairs are reached time "<<end-start<<" sec\n";
+    tot += (end-start);
+    if (iter > 0 && 
+	(float) current_count < (float) previous_count * (1.0 + termination_criteria)) {
       diameter = iter;
       dc.cout() << "converge\n";
       break;
     }
     previous_count = current_count;
   }
-  time(&end);
+  time(&te);
 
-  dc.cout() << "graph calculation time is " << (end - start) << " sec\n";
+#ifdef ENABLE_BI_AUTO_FLUSH
+    bi_server_stop();
+#endif
+
+  dc.cout() << "graph  engine tot "<<tot<<" calculation time is " << te-ts << " sec\n";
   dc.cout() << "The approximate diameter is " << diameter << "\n";
 
   graphlab::mpi_tools::finalize();
