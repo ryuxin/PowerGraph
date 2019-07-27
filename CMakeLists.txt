@@ -586,14 +586,14 @@ set(CMAKE_C_FLAGS_DEBUG
   "-O0 -Wno-attributes -march=${MARCH} -Winit-self ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 set(CMAKE_CXX_FLAGS_DEBUG
-  "-O0 ${WNO_LOCAL_TYPEDEFS} -Wno-attributes -march=${MARCH} -Winit-self ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+	"-O0 ${WNO_LOCAL_TYPEDEFS} -Wno-attributes -fpermissive -Wconversion-null -Wdeprecated-declarations -march=${MARCH} -Winit-self ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 
 set(CMAKE_C_FLAGS_RELEASE
   "-O3 -Wno-attributes -fpermissive -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 set(CMAKE_CXX_FLAGS_RELEASE
-  "-O3 ${WNO_LOCAL_TYPEDEFS} -Wno-attributes -fpermissive -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
+	"-O3 ${WNO_LOCAL_TYPEDEFS} -Wno-attributes -fpermissive -Wconversion-null -Wdeprecated-declarations -march=${MARCH} -mtune=${MTUNE} ${PROFILING_FLAGS} ${COMPILER_FLAGS}"
   CACHE STRING "compiler options" FORCE)
 
 set(CMAKE_REQUIRED_FLAGS ${CMAKE_CXX_FLAGS_RELEASE})

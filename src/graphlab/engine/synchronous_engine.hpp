@@ -706,6 +706,9 @@ namespace graphlab {
     // flush cache of apply phase, *_per_core runs in parallel and the other is single thread
     void flush_vertex_ext(size_t thread_id, atomic<size_t> &cnt);
     void flush_vertexs_per_core(size_t thread_id);
+#else
+    // reclaim wlog buffer
+    void reclaim_vertexs_per_core(size_t thread_id);
 #endif
 #endif
 
@@ -968,7 +971,6 @@ namespace graphlab {
      * exchange has been flushed
      */
     void recv_messages();
-
 
   }; // end of class synchronous engine
 
@@ -1409,7 +1411,9 @@ namespace graphlab {
        */
 
 #ifdef ENABLE_BI_GRAPH 
+#ifndef ENABLE_BI_AUTO_FLUSH
       run_synchronous( &synchronous_engine::flush_gathers_per_core);
+#endif
       run_synchronous( &synchronous_engine::recv_gathers);
 #endif
 
@@ -1429,8 +1433,13 @@ namespace graphlab {
        */
 
 #ifdef ENABLE_BI_GRAPH 
+#ifndef ENABLE_BI_AUTO_FLUSH
       run_synchronous( &synchronous_engine::flush_vertexs_per_core);
+#else
+      run_synchronous( &synchronous_engine::reclaim_vertexs_per_core);
 #endif
+#endif
+
 
       // Execute Scatter Operations -----------------------------------------
       // Execute each of the scatters on all minor-step active vertices.
@@ -1438,6 +1447,11 @@ namespace graphlab {
       /**
        * Post conditions:
        *   1) NONE
+      {
+      bi_wlog_status(10);
+        termination_reason = execution_status::TASK_DEPLETION;
+        break;
+      }
        */
       if(rmi.procid() == 0 && print_this_round) {
 //        logstream(LOG_EMPH) << "\t Running Aggregators" << std::endl;
@@ -1492,6 +1506,7 @@ namespace graphlab {
     const size_t TRY_RECV_MOD = 100;
     size_t vcount = 0;
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
+
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1597,7 +1612,6 @@ namespace graphlab {
     size_t vcount = 0;
     const bool caching_enabled = !gather_cache.empty();
     timer ti;
-
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // a word-size = 64 bit
 
     while (1) {
@@ -1674,8 +1688,8 @@ namespace graphlab {
        	// If the accum contains a value for the local gather we put
         // that estimate in the gather exchange.
 #ifdef ENABLE_BI_GRAPH 
-       // if(accum_is_set) sync_gather(lvid, accum, thread_id);
-       sync_gather(lvid, accum, thread_id);
+        if(accum_is_set) sync_gather(lvid, accum, thread_id);
+       //sync_gather(lvid, accum, thread_id);
 #else
         if(accum_is_set) sync_gather(lvid, accum, thread_id);
 #endif
@@ -1708,8 +1722,8 @@ namespace graphlab {
     const size_t TRY_RECV_MOD = 1000;
     size_t vcount = 0;
     timer ti;
-
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset;  // allocate a word size = 64bits
+
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1746,6 +1760,9 @@ namespace graphlab {
 	if (const_vprog.vertex_change_visible(const_vertex)) {
 //		std::cout<<"dbg id "<<rmi.procid()<<" ver lid "<<lvid<<" gid "<<vertex.id()<<" addr "<<vertex.get_owner_addr()<<std::endl;
 	       	clwb_range_opt(vertex.get_owner_addr(), sizeof(vertex_data_type));
+#ifdef ENABLE_BI_AUTO_FLUSH
+		bi_wlog_free(vertex.get_owner_addr(), sizeof(vertex_data_type), thread_id);
+#endif
 #else
         if(const_vprog.scatter_edges(context, const_vertex) !=
            graphlab::NO_EDGES) {
@@ -1790,6 +1807,7 @@ namespace graphlab {
     context_type context(*this, graph);
     timer ti;
     fixed_dense_bitset<8 * sizeof(size_t)> local_bitset; // allocate a word size = 64 bits
+
     while (1) {
       // increment by a word at a time
       lvid_type lvid_block_start =
@@ -1939,6 +1957,9 @@ namespace graphlab {
 	 if (vertex.gather_data() != accum) {
 		 vertex.gather_data_set(accum);
 //		std::cout<<"dbg snyc gathe id "<<rmi.procid()<<" s2 "<<accum.bitmask.size()<<std::endl;
+#ifdef ENABLE_BI_AUTO_FLUSH
+		 bi_wlog_free(vertex.gather_addr(), sizeof(gather_type), thread_id);
+#endif
 	 }
     }
     vlocks[lvid].unlock();
@@ -2071,6 +2092,7 @@ namespace graphlab {
 
 
 #ifdef ENABLE_BI_GRAPH
+#ifndef ENABLE_BI_AUTO_FLUSH
   template<typename VertexProgram>
   void synchronous_engine<VertexProgram>::
   flush_gathers_ext(const size_t thread_id, atomic<size_t> &cnt) {
@@ -2134,7 +2156,13 @@ namespace graphlab {
   flush_vertexs_per_core(const size_t thread_id) {
 	  flush_vertex_ext(thread_id, shared_lvid_counter); 
   }
-
+#else
+  template<typename VertexProgram>
+  void synchronous_engine<VertexProgram>::
+  reclaim_vertexs_per_core(const size_t thread_id) {
+	  bi_wlog_reclaim(thread_id);
+  }
+#endif
 #endif
 
 
